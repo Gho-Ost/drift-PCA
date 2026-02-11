@@ -74,7 +74,7 @@ def create_scatter_plot(
             x_offset,
             y_offset,
             f"{fit_time:.5f}s",
-            transform=plt.gca().transAxes,
+            transform=ax.transAxes,
             fontsize=24,
             verticalalignment="top",
             horizontalalignment="right",
@@ -105,7 +105,7 @@ def add_biplot_arrows(ax, pca, X_transformed, n_features=None, feature_names=Non
     # Calculate arrow width
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
-    width = -0.0075 * np.min([np.subtract(*xlim), np.subtract(*ylim)])
+    width = -0.0075 * np.min([np.subtract(*xlim), np.subtract(*ylim)]) # TODO fix for scaling issues
 
     # Draw arrows for each feature
     for i, arrow in enumerate(arrows):
@@ -143,3 +143,68 @@ def add_biplot_arrows(ax, pca, X_transformed, n_features=None, feature_names=Non
             ),
             zorder=11,
         )
+
+def add_drift_info_to_plot(ax, dca, add_anchor, add_vectors):
+    """
+    Add drift vectors (Mean Increase, Std Increase) and Anchor point to the plot.
+    Drift vectors are shifted to the PCA space center 0.0 instead of the Anchor point for visual clarity.
+    """
+    if not add_vectors or dca.diff_vectors is None:
+        return
+        
+    # Transform diff vectors to PCA space
+    vectors_trans = dca.transform(dca.diff_vectors)
+    
+    # Calculate width for arrows based on plot limits
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    # Simple heuristic for width similar to visualization_utils
+    width = 0.005 * min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0]))
+
+    start_idx = 0
+    if add_anchor:
+        if len(vectors_trans) > 0:
+            origin = vectors_trans[0]
+            # Plot Data Origin
+            ax.scatter(origin[0], origin[1], color='Red', s=100, marker='X', zorder=20, label='Data Origin')
+            ax.text(origin[0], origin[1], 'Data Origin', color='Red', fontsize=16, ha='right', va='bottom')
+            start_idx = 1
+    
+    labels = ['Mean Increase', 'Std Increase'] # TODO add for more classes used in PCA fitting
+    colors = ['#ff7300', 'green'] # Orange, Green
+    
+    max_val = np.max(np.abs(vectors_trans))
+    min_dimension = min(abs(xlim[1]), abs(ylim[1]))
+
+    # 3. Calculate a single SCALAR scale factor
+    # This ensures x and y are multiplied by the same amount, preserving the angle.
+    if max_val > 0:
+        scale_factor = 0.5 * min_dimension / max_val
+    else:
+        scale_factor = 1.0
+
+    for i, vec in enumerate(vectors_trans[start_idx:]):
+        if i >= len(labels): break
+
+        # Calculate the raw vector difference
+        dx = vec[0] - origin[0]
+        dy = vec[1] - origin[1]
+
+        if add_anchor:
+            # Apply the SCALAR scale_factor to both dx and dy
+            ax.arrow(0, 0, dx * scale_factor, dy * scale_factor, 
+                        color=colors[i], width=width, length_includes_head=True, zorder=20)
+            
+            # Label
+            ax.text(dx * scale_factor * 1.15, dy * scale_factor * 1.15, 
+                    labels[i], color=colors[i], fontsize=16, ha='center', va='center', fontweight='bold', 
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="none"))
+
+        else:
+            # Same logic if not using anchor offset (just raw vector)
+            ax.arrow(0, 0, vec[0] * scale_factor, vec[1] * scale_factor, 
+                        color=colors[i], width=width, length_includes_head=True, zorder=20)
+            
+            ax.text(vec[0] * scale_factor * 1.15, vec[1] * scale_factor * 1.15, 
+                    labels[i], color=colors[i], fontsize=16, ha='center', va='center', fontweight='bold', 
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="none"))

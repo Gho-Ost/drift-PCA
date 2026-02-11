@@ -13,11 +13,13 @@ class DriftComponentAnalysis:
     It can compute drift globally or per-class.
     """
     
-    def __init__(self, n_components=2, by_class=False):
+    def __init__(self, n_components=2, by_class=False, add_anchor_point=False):
         self.n_components = n_components
         self.by_class = by_class
+        self.add_anchor_point = add_anchor_point
         self.pca = PCA(n_components=n_components)
         self.components_ = None
+        self.diff_vectors = None
         
     def fit(self, X_ref, X_cur, y_ref=None, y_cur=None):
         """
@@ -69,11 +71,18 @@ class DriftComponentAnalysis:
             std_ref = np.std(X_ref, axis=0)
             mean_cur = np.mean(X_cur, axis=0)
             std_cur = np.std(X_cur, axis=0)
+
+            # print("Means", mean_ref)
+            # print("Std", std_ref)
             
+            if self.add_anchor_point:
+                diff_vectors.append(np.zeros(len(mean_ref))) # Origin anchor (no drift)
+
             diff_vectors.append(mean_cur - mean_ref)
             diff_vectors.append(std_cur - std_ref)
             
         diff_vectors = np.array(diff_vectors)
+        print(diff_vectors)
         
         # Handle edge case: no variance in drift vectors (e.g. no change)
         if np.all(diff_vectors == 0) or len(diff_vectors) == 0:
@@ -85,7 +94,9 @@ class DriftComponentAnalysis:
              # But usually sklearn handles n_samples < n_components
             self.pca.fit(diff_vectors)
             
+        # print("Explained variance ratio:", self.pca.explained_variance_ratio_)
         self.components_ = self.pca.components_
+        self.diff_vectors = diff_vectors # TODO test adding this to plots
         return self
         
     def transform(self, X):

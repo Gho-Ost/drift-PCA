@@ -8,7 +8,7 @@ import time
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from analysis_methods.drift_component_analysis import DriftComponentAnalysis
-from visualization_utils import create_scatter_plot, add_biplot_arrows
+from visualization_utils import create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot
 
 # Configure logging
 logging.basicConfig(
@@ -62,10 +62,9 @@ def calculate_shapley_values(X_pre, X_post, y_pre, y_post, class_idx=1):
         le_full = LabelEncoder()
         le_full.fit(y) 
         y_pre_num = le_full.transform(y_pre)
-        # y_post_num = le_full.transform(y_post) # Unused
+        # y_post_num = le_full.transform(y_post)
         
-        # Merge for training to get a decent model representation
-        # Ideally we train on Pre and explain Pre and Post
+        # Train on Pre and explain Pre and Post
         clf = RandomForestClassifier(n_estimators=10, max_depth=5, random_state=42)
         clf.fit(X_pre, y_pre_num)
         
@@ -74,7 +73,7 @@ def calculate_shapley_values(X_pre, X_post, y_pre, y_post, class_idx=1):
         # using TreeExplainer which is faster for trees
         explainer = shap.TreeExplainer(clf)
         
-        # check_additivity=False to avoid errors with some RF approximations
+        # check_additivity=False to save time
         shap_values_pre_raw = explainer.shap_values(X_pre, check_additivity=False) 
         shap_values_post_raw = explainer.shap_values(X_post, check_additivity=False)
 
@@ -89,11 +88,11 @@ def calculate_shapley_values(X_pre, X_post, y_pre, y_post, class_idx=1):
             # If it returns a single array (e.g. regression or new shap versions), use as is
             # If 3D array (samples, features, outputs)
             if len(shap_values_pre_raw.shape) == 3:
-                 shap_values_pre = shap_values_pre_raw[:, :, class_idx]
-                 shap_values_post = shap_values_post_raw[:, :, class_idx]
+                shap_values_pre = shap_values_pre_raw[:, :, class_idx]
+                shap_values_post = shap_values_post_raw[:, :, class_idx]
             else:
-                 shap_values_pre = shap_values_pre_raw
-                 shap_values_post = shap_values_post_raw
+                shap_values_pre = shap_values_pre_raw
+                shap_values_post = shap_values_post_raw
             
     except Exception as e:
         logger.warning(f"Model training/explanation failed: {e}")
@@ -116,43 +115,41 @@ def calculate_incorrect_classifications(X_pre, X_post, y_pre, y_post):
     clf = RandomForestClassifier(n_estimators=10, max_depth=5, random_state=42)
 
     # Split Pre data to have a holdout for "Pre-drift errors"
-    # We don't want to check training errors as they might be 0 (overfitting)
     X_train, X_test, y_train, y_test = train_test_split(X_pre, y_pre_num, test_size=0.3, random_state=42)
     clf.fit(X_train, y_train)
     
     y_pred_test = clf.predict(X_test)
     y_pred_post = clf.predict(X_post)
 
-    # Identify errors
     mask_pre = y_pred_test != y_test
-    mask_post = y_pred_post != y_post_num # Compare with transformed y_post
+    mask_post = y_pred_post != y_post_num
 
     incorrect_clfs_pre = X_test[mask_pre]
-    incorrect_pre_y = y_test[mask_pre] # These are numeric labels
+    incorrect_pre_y = y_test[mask_pre]
     
     incorrect_clfs_post = X_post[mask_post]
     incorrect_post_y = y_post[mask_post]
 
-    # inverse transform labels for consistency if needed, but keeping numeric is fine for plotting colors
-    
     return incorrect_clfs_pre, incorrect_clfs_post, incorrect_pre_y, incorrect_post_y
 
-def run_comparison(dataset_name="sea"):
-    logger.info(f"Starting PCA vs Drift-PCA comparison for dataset: {dataset_name}")
+
+
+def run_comparison(args):
+    logger.info(f"Starting PCA vs Drift-PCA comparison for dataset: {args.dataset}")
     
     # Ensure results directory exists
-    output_dir = f"results/{dataset_name}"
+    output_dir = f"results/{args.dataset}{'_Anchor' if args.add_anchor_point else ''}"
     os.makedirs(output_dir, exist_ok=True)
     
-    # --- 1. Load Data ---
+    # Load Data
     try:
-        X_pre, y_pre, X_post, y_post, feature_names = load_and_scale_data(dataset_name)
-        logger.info(f"Loaded {dataset_name} dataset: {len(X_pre)} pre, {len(X_post)} post")
+        X_pre, y_pre, X_post, y_post, feature_names = load_and_scale_data(args.dataset)
+        logger.info(f"Loaded {args.dataset} dataset: {len(X_pre)} pre, {len(X_post)} post")
     except Exception as e:
         logger.error(f"Failed to load data: {e}")
         return
 
-    # --- 2. Calculate Representations ---
+    # Calculate Representations
     
     # Data (Raw)
     # Already loaded as X_pre, X_post
@@ -193,13 +190,13 @@ def run_comparison(dataset_name="sea"):
     if len(err_pre) > 2 and len(err_post) > 2:
         data_dict["Errors"] = {
             "train": (err_pre, err_post),
-            "vis": (err_pre, err_y_pre, err_post, err_y_post), # Note: using numeric labels here
+            "vis": (err_pre, err_y_pre, err_post, err_y_post),
             "features": feature_names
         }
     else:
         logger.warning("Not enough error samples for 'Errors' orientation/visualization")
 
-    # --- 3. Loop: Orientation x Visualization ---
+    # Loop: Orientation x Visualization
     
     orient_keys = list(data_dict.keys())
     vis_keys = list(data_dict.keys())
@@ -208,7 +205,6 @@ def run_comparison(dataset_name="sea"):
         for vis_name in vis_keys:
             logger.info(f"--- Processing: Orientation={orient_name}, Visualization={vis_name} ---")
             
-            # Setup Data
             orient_data = data_dict[orient_name]
             vis_data = data_dict[vis_name]
             
@@ -216,36 +212,31 @@ def run_comparison(dataset_name="sea"):
             X_vis_pre, y_vis_pre, X_vis_post, y_vis_post = vis_data["vis"]
             vis_features = vis_data["features"]
             
-            # A. Train Standard PCA (on Pre-Drift Orientation Data)
-            # We fit on the "Orientation" pre-data
+            # Standard PCA for comparison
             pca = PCA(n_components=2)
             t0 = time.time()
             pca.fit(X_train_pre)
             pca_fit_time = time.time() - t0
             
-            # Transform Visualization Data
             t0 = time.time()
             X_pca_pre_vis = pca.transform(X_vis_pre)
             pca_trans_time = time.time() - t0
             
             X_pca_post_vis = pca.transform(X_vis_post)
             
-            # B. Train Drift PCA (on Pre vs Post Orientation Diffs)
-            dca = DriftComponentAnalysis(n_components=2)
+            # Drift PCA
+            dca = DriftComponentAnalysis(n_components=2, add_anchor_point=args.add_anchor_point)
             t0 = time.time()
-            # Handle potential dimension mismatch if sizes differ significantly? 
-            # DCA takes (X_ref, X_cur) and computes stats. Should be fine even if different lengths.
             dca.fit(X_train_pre, X_train_post)
             dca_fit_time = time.time() - t0
             
-            # Transform Visualization Data
             t0 = time.time()
             X_dca_pre_vis = dca.transform(X_vis_pre)
             dca_trans_time = time.time() - t0
             
             X_dca_post_vis = dca.transform(X_vis_post)
             
-            # --- C. Visualization ---
+            # Visualization
             
             # Determine global limits for the plot to maintain scale
             # PCA Cluster
@@ -264,8 +255,10 @@ def run_comparison(dataset_name="sea"):
                 X_pca_pre_vis, y_vis_pre, "PC1", "PC2", 
                 f"PCA ({orient_name}) on Pre {vis_name}", pca_fit_time, show_time=True
             )
-            fig_p1.set_xlim(x_min_p, x_max_p)
-            fig_p1.set_ylim(y_min_p, y_max_p)
+            fig_p1.axvline(0, color='k', linestyle='--')
+            fig_p1.axhline(0, color='k', linestyle='--')
+            fig_p1.set_xlim(x_min_p - 0.1 * (x_max_p - x_min_p), x_max_p + 0.1 * (x_max_p - x_min_p)) # Make sure the 0.0 point is included in the figure
+            fig_p1.set_ylim(y_min_p - 0.1 * (y_max_p - y_min_p), y_max_p + 0.1 * (y_max_p - y_min_p))
             add_biplot_arrows(fig_p1, pca, X_pca_pre_vis, feature_names=vis_features)
             
             # 2. Standard PCA - Post
@@ -273,9 +266,10 @@ def run_comparison(dataset_name="sea"):
                 X_pca_post_vis, y_vis_post, "PC1", "PC2", 
                 f"PCA ({orient_name}) on Post {vis_name}", pca_trans_time, show_time=True
             )
-            fig_p2.set_xlim(x_min_p, x_max_p)
-            fig_p2.set_ylim(y_min_p, y_max_p)
-            # Biplot on post too? Usually loadings are same, arrows are same.
+            fig_p2.axvline(0, color='k', linestyle='--')
+            fig_p2.axhline(0, color='k', linestyle='--')
+            fig_p2.set_xlim(x_min_p - 0.1 * (x_max_p - x_min_p), x_max_p + 0.1 * (x_max_p - x_min_p))
+            fig_p2.set_ylim(y_min_p - 0.1 * (y_max_p - y_min_p), y_max_p + 0.1 * (y_max_p - y_min_p))
             add_biplot_arrows(fig_p2, pca, X_pca_post_vis, feature_names=vis_features)
 
             # 3. Drift PCA - Pre
@@ -283,18 +277,26 @@ def run_comparison(dataset_name="sea"):
                 X_dca_pre_vis, y_vis_pre, "D1", "D2", 
                 f"Drift PCA ({orient_name}) on Pre {vis_name}", dca_fit_time, show_time=True
             )
-            fig_d1.set_xlim(x_min_d, x_max_d)
-            fig_d1.set_ylim(y_min_d, y_max_d)
+            fig_d1.axvline(0, color='k', linestyle='--')
+            fig_d1.axhline(0, color='k', linestyle='--')
+            fig_d1.set_xlim(x_min_d - 0.1 * (x_max_d - x_min_d), x_max_d + 0.1 * (x_max_d - x_min_d))
+            fig_d1.set_ylim(y_min_d - 0.1 * (y_max_d - y_min_d), y_max_d + 0.1 * (y_max_d - y_min_d))
             add_biplot_arrows(fig_d1, dca.pca, X_dca_pre_vis, feature_names=vis_features)
+            add_drift_info_to_plot(fig_d1, dca, args.add_anchor_point, args.add_drift_vectors)
+
 
             # 4. Drift PCA - Post
             fig_d2 = create_scatter_plot(
                 X_dca_post_vis, y_vis_post, "D1", "D2", 
                 f"Drift PCA ({orient_name}) on Post {vis_name}", dca_trans_time, show_time=True
             )
-            fig_d2.set_xlim(x_min_d, x_max_d)
-            fig_d2.set_ylim(y_min_d, y_max_d)
+            fig_d2.axvline(0, color='k', linestyle='--')
+            fig_d2.axhline(0, color='k', linestyle='--')
+            fig_d2.set_xlim(x_min_d - 0.1 * (x_max_d - x_min_d), x_max_d + 0.1 * (x_max_d - x_min_d))
+            fig_d2.set_ylim(y_min_d - 0.1 * (y_max_d - y_min_d), y_max_d + 0.1 * (y_max_d - y_min_d))
             add_biplot_arrows(fig_d2, dca.pca, X_dca_post_vis, feature_names=vis_features)
+            add_drift_info_to_plot(fig_d2, dca, args.add_anchor_point, args.add_drift_vectors)
+
             
             # Combine
             final_utils = (fig_p1 | fig_p2) / (fig_d1 | fig_d2)
@@ -307,6 +309,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Run Drift PCA Comparison")
     parser.add_argument("--dataset", type=str, default="sea", help="Name of the dataset (e.g., sea, elec)")
+    parser.add_argument("--add_anchor_point", action='store_true', help="Add anchor point to Drift PCA")
+    parser.add_argument("--add_drift_vectors", action='store_true', help="Add drift vectors to plots")
+
     args = parser.parse_args()
     
-    run_comparison(args.dataset)
+    run_comparison(args)
