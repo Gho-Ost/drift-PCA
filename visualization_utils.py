@@ -171,7 +171,7 @@ def add_drift_info_to_plot(ax, dca, add_anchor, add_vectors):
             start_idx = 1
     
     labels = ['Mean Increase', 'Std Increase'] # TODO add for more classes used in PCA fitting
-    colors = ['#ff7300', 'green'] # Orange, Green
+    colors = ['#7802b8', 'green'] # Purple, Green
     
     max_val = np.max(np.abs(vectors_trans))
     min_dimension = min(abs(xlim[1]), abs(ylim[1]))
