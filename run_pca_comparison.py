@@ -203,6 +203,10 @@ def run_comparison(args):
     
     for orient_name in orient_keys:
         for vis_name in vis_keys:
+            if orient_name != "Shapley" and vis_name == "Shapley":
+                logger.info(f"--- Skipping: Orientation={orient_name}, Visualization={vis_name} ---")
+                continue
+
             logger.info(f"--- Processing: Orientation={orient_name}, Visualization={vis_name} ---")
             
             orient_data = data_dict[orient_name]

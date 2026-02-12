@@ -82,7 +82,7 @@ class DriftComponentAnalysis:
             diff_vectors.append(std_cur - std_ref)
             
         diff_vectors = np.array(diff_vectors)
-        print(diff_vectors)
+        # print(diff_vectors)
         
         # Handle edge case: no variance in drift vectors (e.g. no change)
         if np.all(diff_vectors == 0) or len(diff_vectors) == 0:
@@ -96,7 +96,7 @@ class DriftComponentAnalysis:
             
         # print("Explained variance ratio:", self.pca.explained_variance_ratio_)
         self.components_ = self.pca.components_
-        self.diff_vectors = diff_vectors # TODO test adding this to plots
+        self.diff_vectors = diff_vectors # for mean and std vectors
         return self
         
     def transform(self, X):
