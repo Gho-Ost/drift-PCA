@@ -14,9 +14,14 @@ from sklearn.model_selection import train_test_split
 
 import matplotlib.pyplot as plt
 import patchworklib as pw
-from visualization_utils import create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot
 
+# Parent dir import
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from analysis_methods.visualization_utils import create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot
 from analysis_methods.drift_component_analysis import DriftComponentAnalysis
+
 
 # Configure logging
 logging.basicConfig(
@@ -141,7 +146,7 @@ def run_comparison(args):
     logger.info(f"Starting PCA vs Drift-PCA comparison for dataset: {args.dataset}")
     
     # Ensure results directory exists
-    output_dir = f"results/{args.dataset}{'_Anchor' if args.add_anchor_point else ''}"
+    output_dir = os.path.join(args.results_dir, f"{args.dataset}{'_Anchor' if args.add_anchor_point else ''}")
     os.makedirs(output_dir, exist_ok=True)
     
     # Load Data
@@ -304,12 +309,27 @@ def run_comparison(args):
             add_biplot_arrows(fig_d2, dca.pca, X_dca_post_vis, feature_names=vis_features)
             add_drift_info_to_plot(fig_d2, dca, args.add_anchor_point, args.add_drift_vectors)
 
-            # 5. Combined Drift PCA - Pre & Post
+            # Combined Labels
+            y_combined = np.array(["Pre-Drift"] * len(X_vis_pre) + ["Post-Drift"] * len(X_vis_post))
+
+            # 5. Combined Standard PCA - Pre & Post
+            X_pca_combined = np.vstack([X_pca_pre_vis, X_pca_post_vis])
+            
+            fig_p3 = create_scatter_plot(
+                X_pca_combined, y_combined, "PC1", "PC2", 
+                f"PCA ({orient_name}) Combined Pre/Post {vis_name}", 0.0, show_time=False
+            )
+            fig_p3.axvline(0, color='k', linestyle='--')
+            fig_p3.axhline(0, color='k', linestyle='--')
+            fig_p3.set_xlim(x_min_p - 0.1 * (x_max_p - x_min_p), x_max_p + 0.1 * (x_max_p - x_min_p))
+            fig_p3.set_ylim(y_min_p - 0.1 * (y_max_p - y_min_p), y_max_p + 0.1 * (y_max_p - y_min_p))
+            add_biplot_arrows(fig_p3, pca, X_pca_combined, feature_names=vis_features)
+
+            # 6. Combined Drift PCA - Pre & Post
             X_dca_combined = np.vstack([X_dca_pre_vis, X_dca_post_vis])
-            y_dca_combined = np.array(["Pre-Drift"] * len(X_dca_pre_vis) + ["Post-Drift"] * len(X_dca_post_vis))
             
             fig_d3 = create_scatter_plot(
-                X_dca_combined, y_dca_combined, "D1", "D2", 
+                X_dca_combined, y_combined, "D1", "D2", 
                 f"Drift PCA ({orient_name}) Combined Pre/Post {vis_name}", 0.0, show_time=False
             )
             fig_d3.axvline(0, color='k', linestyle='--')
@@ -321,7 +341,7 @@ def run_comparison(args):
 
             
             # Combine
-            final_utils = (fig_p1 | fig_p2) / (fig_d1 | fig_d2) / fig_d3
+            final_utils = (fig_p1 | fig_p2) / (fig_d1 | fig_d2) / (fig_p3 | fig_d3)
             
             out_name = os.path.join(output_dir, f"comparison_O-{orient_name}_V-{vis_name}.png")
             final_utils.savefig(out_name, dpi=120)
@@ -331,6 +351,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Run Drift PCA Comparison")
     parser.add_argument("--data_dir", type=str, default="data", help="Directory containing the dataset files")
+    parser.add_argument("--results_dir", type=str, default="results", help="Directory to save the results")
     parser.add_argument("--dataset", type=str, default="sea", help="Name of the dataset (e.g., sea, elec)")
     parser.add_argument("--add_anchor_point", action='store_true', help="Add anchor point to Drift PCA")
     parser.add_argument("--add_drift_vectors", action='store_true', help="Add drift vectors to plots")

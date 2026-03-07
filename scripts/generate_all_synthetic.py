@@ -5,14 +5,19 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 import json
+import os
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+scenarios_file = os.path.join(project_root, "synthetic_data.json")
 
 # Load the drift scenarios from scenarios.json
-with open("scenarios.json", "r") as f:
+with open(scenarios_file, "r") as f:
     scenarios = json.load(f)
 
 def run_generation():
     python_exe = sys.executable
-    script_path = "generate_synthetic_drift.py"
+    script_path = os.path.join(script_dir, "generate_synthetic_drift.py")
     
     success_count = 0
     
@@ -22,7 +27,9 @@ def run_generation():
         
         cmd = [
             python_exe, script_path,
-            "--name", s["name"],
+            "--name", s["name"], 
+            "--data_dir", "data\\synth_stream_datasets", 
+            "--vis_dir", "data\\synth_datasets_vis",
             "--means_pre"
         ] + [str(m) for m in s["means_pre"]] + [
             "--stds_pre"

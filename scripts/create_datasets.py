@@ -14,13 +14,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-TARGET_DIR = "stream_datasets"
+TARGET_DIR = "data/stream_datasets"
 
 class InsectsBalanced(base.FileDataset):
     def __init__(self):
         super().__init__(
             filename="INSECTS-abrupt_balanced_norm.csv",
-            directory="datasets",
+            directory="data/other_datasets",
             n_samples=52_848,
             n_features=33,
             task=base.MULTI_CLF,

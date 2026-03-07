@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 import logging
+import argparse
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -25,9 +26,12 @@ def get_datasets(data_dir):
             
     return sorted(list(datasets))
 
-def run_all_datasets():
-    python_script = "run_pca_comparison.py"
-    data_dir = "data/synth_stream_datasets"
+def run_all_datasets(args):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    
+    python_script = os.path.join(script_dir, "run_pca_comparison.py")
+    data_dir = os.path.join(project_root, "data", "synth_stream_datasets")
     
     datasets = get_datasets(data_dir)
     
@@ -46,6 +50,7 @@ def run_all_datasets():
             sys.executable, python_script,
             "--data_dir", data_dir,
             "--dataset", dataset,
+            "--results_dir", args.results_dir,
             "--add_drift_vectors",
             "--add_anchor_point"
         ]
@@ -62,4 +67,8 @@ def run_all_datasets():
     logging.info(f"Finished processing datasets. {success_count}/{len(datasets)} successful.")
 
 if __name__ == "__main__":
-    run_all_datasets()
+    parser = argparse.ArgumentParser(description="Run PCA Comparison on all datasets")
+    parser.add_argument("--results_dir", type=str, default="results", help="Directory to save the results")
+    args = parser.parse_args()
+    
+    run_all_datasets(args)

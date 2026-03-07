@@ -26,7 +26,9 @@ def create_synthetic_drift(
     stds_pre,
     means_post,
     stds_post,
-    n_samples=4000
+    n_samples=4000,
+    data_dir=None,
+    vis_dir=None
 ):
     """
     Generate synthetic drift dataset.
@@ -64,8 +66,12 @@ def create_synthetic_drift(
     df_post['target'] = y_post
     
     # Create Directories
-    data_dir = "data/synth_stream_datasets"
-    vis_dir = "data/synth_datasets_vis"
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if data_dir is None:
+        data_dir = os.path.join(project_root, "data", "synth_stream_datasets")
+    if vis_dir is None:
+        vis_dir = os.path.join(project_root, "data", "synth_datasets_vis")
+        
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(vis_dir, exist_ok=True)
     
@@ -110,6 +116,8 @@ if __name__ == "__main__":
     parser.add_argument("--means_post", type=float, nargs='+', required=True, help="List of means for post-drift features")
     parser.add_argument("--stds_post", type=float, nargs='+', required=True, help="List of standard deviations for post-drift features")
     parser.add_argument("--n_samples", type=int, default=4000, help="Total number of samples (split equally)")
+    parser.add_argument("--data_dir", type=str, default=None, help="Directory to save CSV data")
+    parser.add_argument("--vis_dir", type=str, default=None, help="Directory to save visualizations")
     
     args = parser.parse_args()
     
@@ -119,5 +127,7 @@ if __name__ == "__main__":
         stds_pre=args.stds_pre,
         means_post=args.means_post,
         stds_post=args.stds_post,
-        n_samples=args.n_samples
+        n_samples=args.n_samples,
+        data_dir=args.data_dir,
+        vis_dir=args.vis_dir
     )
