@@ -1,4 +1,4 @@
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, TruncatedSVD
 import numpy as np
 import logging
 
@@ -17,7 +17,7 @@ class DriftComponentAnalysis:
         self.n_components = n_components
         self.by_class = by_class
         self.add_anchor_point = add_anchor_point
-        self.pca = PCA(n_components=n_components)
+        self.pca = PCA(n_components=n_components) # TruncatedSVD
         self.components_ = None
         self.diff_vectors = None
         

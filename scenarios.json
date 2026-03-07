@@ -1,0 +1,270 @@
+[
+    {
+        "name": "1_mean_shift_f0_2f",
+        "desc": "Simple shift in mean for one out of two feature, no variance change",
+        "means_pre": [
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            1.0,
+            0.0
+        ],
+        "stds_post": [
+            1.0,
+            1.0
+        ]
+    },
+    {
+        "name": "2_mean_shift_f0_3f",
+        "desc": "Simple shift in mean for one out of three feature, no variance change",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "stds_post": [
+            1.0,
+            1.0,
+            1.0
+        ]
+    },
+    {
+        "name": "3_mean_shift_f0_5f",
+        "desc": "Simple shift in mean for one out of five feature, no variance change",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_post": [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ]
+    },
+    {
+        "name": "4_mean_shift_f0_x2",
+        "desc": "Stronger simple shift in mean for one feature, no variance change",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            2.0,
+            0.0,
+            0.0
+        ],
+        "stds_post": [
+            1.0,
+            1.0,
+            1.0
+        ]
+    },
+    {
+        "name": "5_mean_shift_f01",
+        "desc": "Simple shift in mean for two out of three features, no variance change",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            1.0,
+            -1.0,
+            0.0
+        ],
+        "stds_post": [
+            1.0,
+            1.0,
+            1.0
+        ]
+    },
+    {
+        "name": "6_variance_shift_f0",
+        "desc": "Increase in variance for a single feature, no mean shift",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_post": [
+            2.0,
+            1.0,
+            1.0
+        ]
+    },
+    {
+        "name": "7_variance_shift_f01",
+        "desc": "Increase in variance for both features, no mean shift",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_post": [
+            2.0,
+            0.5,
+            1.0
+        ]
+    },
+    {
+        "name": "8_mean_and_variance",
+        "desc": "Shift in mean for two features and increase in variance for one",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            1.0,
+            2.0,
+            0.0
+        ],
+        "stds_post": [
+            1.0,
+            1.0,
+            2.0
+        ]
+    },
+    {
+        "name": "9_mean_and_variance",
+        "desc": "Shift in mean and variance for one feature",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            1.0,
+            2.0,
+            0.0
+        ],
+        "stds_post": [
+            1.0,
+            2.0,
+            0.0
+        ]
+    },
+    {
+        "name": "10_subtle_drift",
+        "desc": "Small change in mean and variance of two features",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            0.5,
+            0.2,
+            0.0
+        ],
+        "stds_post": [
+            1.1,
+            0.9,
+            1.0
+        ]
+    },
+    {
+        "name": "11_drastic_drift",
+        "desc": "Huge separation between pre and post datasets",
+        "means_pre": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post": [
+            10.0,
+            -10.0,
+            5.0
+        ],
+        "stds_post": [
+            0.2,
+            10.0,
+            13.0
+        ]
+    }
+]

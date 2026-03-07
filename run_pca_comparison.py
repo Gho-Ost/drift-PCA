@@ -1,14 +1,22 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import patchworklib as pw
 import logging
 import os
 import time
+
+import shap
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from analysis_methods.drift_component_analysis import DriftComponentAnalysis
+from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+
+import matplotlib.pyplot as plt
+import patchworklib as pw
 from visualization_utils import create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot
+
+from analysis_methods.drift_component_analysis import DriftComponentAnalysis
 
 # Configure logging
 logging.basicConfig(
@@ -19,18 +27,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-import shap
-from sklearn.preprocessing import LabelEncoder
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-
-def load_and_scale_data(dataset_name="sea"):
+def load_and_scale_data(dataset_name="sea", data_dir="stream_datasets"):
     """Load pre and post drift data for a given dataset."""
-    pre_path = f"stream_datasets/{dataset_name}_pre.csv"
-    post_path = f"stream_datasets/{dataset_name}_post.csv"
+    pre_path = f"{data_dir}/{dataset_name}_pre.csv"
+    post_path = f"{data_dir}/{dataset_name}_post.csv"
 
     if not os.path.exists(pre_path) or not os.path.exists(post_path):
-        raise FileNotFoundError(f"Data files for {dataset_name} not found in stream_datasets/")
+        raise FileNotFoundError(f"Data files for {dataset_name} not found in {data_dir}/")
 
     df_pre = pd.read_csv(pre_path)
     df_post = pd.read_csv(post_path)
@@ -143,7 +146,7 @@ def run_comparison(args):
     
     # Load Data
     try:
-        X_pre, y_pre, X_post, y_post, feature_names = load_and_scale_data(args.dataset)
+        X_pre, y_pre, X_post, y_post, feature_names = load_and_scale_data(args.dataset, data_dir=args.data_dir)
         logger.info(f"Loaded {args.dataset} dataset: {len(X_pre)} pre, {len(X_post)} post")
     except Exception as e:
         logger.error(f"Failed to load data: {e}")
@@ -203,7 +206,7 @@ def run_comparison(args):
     
     for orient_name in orient_keys:
         for vis_name in vis_keys:
-            if orient_name != "Shapley" and vis_name == "Shapley":
+            if not (orient_name == "Data" and vis_name == "Data"):
                 logger.info(f"--- Skipping: Orientation={orient_name}, Visualization={vis_name} ---")
                 continue
 
@@ -301,9 +304,24 @@ def run_comparison(args):
             add_biplot_arrows(fig_d2, dca.pca, X_dca_post_vis, feature_names=vis_features)
             add_drift_info_to_plot(fig_d2, dca, args.add_anchor_point, args.add_drift_vectors)
 
+            # 5. Combined Drift PCA - Pre & Post
+            X_dca_combined = np.vstack([X_dca_pre_vis, X_dca_post_vis])
+            y_dca_combined = np.array(["Pre-Drift"] * len(X_dca_pre_vis) + ["Post-Drift"] * len(X_dca_post_vis))
+            
+            fig_d3 = create_scatter_plot(
+                X_dca_combined, y_dca_combined, "D1", "D2", 
+                f"Drift PCA ({orient_name}) Combined Pre/Post {vis_name}", 0.0, show_time=False
+            )
+            fig_d3.axvline(0, color='k', linestyle='--')
+            fig_d3.axhline(0, color='k', linestyle='--')
+            fig_d3.set_xlim(x_min_d - 0.1 * (x_max_d - x_min_d), x_max_d + 0.1 * (x_max_d - x_min_d))
+            fig_d3.set_ylim(y_min_d - 0.1 * (y_max_d - y_min_d), y_max_d + 0.1 * (y_max_d - y_min_d))
+            add_biplot_arrows(fig_d3, dca.pca, X_dca_combined, feature_names=vis_features)
+            add_drift_info_to_plot(fig_d3, dca, args.add_anchor_point, args.add_drift_vectors)
+
             
             # Combine
-            final_utils = (fig_p1 | fig_p2) / (fig_d1 | fig_d2)
+            final_utils = (fig_p1 | fig_p2) / (fig_d1 | fig_d2) / fig_d3
             
             out_name = os.path.join(output_dir, f"comparison_O-{orient_name}_V-{vis_name}.png")
             final_utils.savefig(out_name, dpi=120)
@@ -312,6 +330,7 @@ def run_comparison(args):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Run Drift PCA Comparison")
+    parser.add_argument("--data_dir", type=str, default="data", help="Directory containing the dataset files")
     parser.add_argument("--dataset", type=str, default="sea", help="Name of the dataset (e.g., sea, elec)")
     parser.add_argument("--add_anchor_point", action='store_true', help="Add anchor point to Drift PCA")
     parser.add_argument("--add_drift_vectors", action='store_true', help="Add drift vectors to plots")

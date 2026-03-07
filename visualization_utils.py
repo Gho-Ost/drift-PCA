@@ -176,7 +176,7 @@ def add_drift_info_to_plot(ax, dca, add_anchor, add_vectors):
     max_val = np.max(np.abs(vectors_trans))
     min_dimension = min(abs(xlim[1]), abs(ylim[1]))
 
-    # 3. Calculate a single SCALAR scale factor
+    # Calculate a single SCALAR scale factor
     # This ensures x and y are multiplied by the same amount, preserving the angle.
     if max_val > 0:
         scale_factor = 0.5 * min_dimension / max_val
