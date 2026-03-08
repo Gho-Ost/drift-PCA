@@ -31,3 +31,9 @@ Define datasets to be visualized in [scripts/run_all_datasets.py](scripts/run_al
 ```bash
 python scripts/run_all_datasets.py --results_dir "results/synth_datasets"
 ```
+
+### Synthetic Test App
+
+```bash
+python -m streamlit run app/main.py
+```bash

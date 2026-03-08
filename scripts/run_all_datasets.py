@@ -51,8 +51,8 @@ def run_all_datasets(args):
             "--data_dir", data_dir,
             "--dataset", dataset,
             "--results_dir", args.results_dir,
-            "--add_drift_vectors",
-            "--add_anchor_point"
+            # "--add_drift_vectors",
+            # "--add_anchor_point"
         ]
         
         try:

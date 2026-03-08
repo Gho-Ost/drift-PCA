@@ -28,7 +28,8 @@ def create_synthetic_drift(
     stds_post,
     n_samples=4000,
     data_dir=None,
-    vis_dir=None
+    vis_dir=None,
+    save_to_disk=True
 ):
     """
     Generate synthetic drift dataset.
@@ -65,6 +66,17 @@ def create_synthetic_drift(
     df_post = pd.DataFrame(X_post, columns=cols)
     df_post['target'] = y_post
     
+    df_pre_plot = df_pre.copy()
+    df_pre_plot['Drift_Stage'] = 'Pre-Drift'
+    
+    df_post_plot = df_post.copy()
+    df_post_plot['Drift_Stage'] = 'Post-Drift'
+    
+    df_combined = pd.concat([df_pre_plot, df_post_plot], ignore_index=True)
+
+    if not save_to_disk:
+        return X_pre, y_pre, X_post, y_post, df_combined
+    
     # Create Directories
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if data_dir is None:
@@ -82,14 +94,6 @@ def create_synthetic_drift(
     df_pre.to_csv(pre_path, index=False)
     df_post.to_csv(post_path, index=False)
     print(f"Saved datasets to:\n- {pre_path}\n- {post_path}")
-    
-    df_pre_plot = df_pre.copy()
-    df_pre_plot['Drift_Stage'] = 'Pre-Drift'
-    
-    df_post_plot = df_post.copy()
-    df_post_plot['Drift_Stage'] = 'Post-Drift'
-    
-    df_combined = pd.concat([df_pre_plot, df_post_plot], ignore_index=True)
     
     print("Generating visualization...")
     g = sns.pairplot(
