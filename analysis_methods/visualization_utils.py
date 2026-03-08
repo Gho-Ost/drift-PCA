@@ -161,8 +161,11 @@ def add_drift_info_to_plot(ax, dca, add_anchor, add_vectors):
     # Simple heuristic for width similar to visualization_utils
     width = 0.005 * min(abs(xlim[1] - xlim[0]), abs(ylim[1] - ylim[0]))
 
+    # start_idx determines if the first diff_vector is the origin anchor
+    actually_add_anchor = add_anchor and getattr(dca, 'add_anchor_point', False)
+    
     start_idx = 0
-    if add_anchor:
+    if actually_add_anchor:
         if len(vectors_trans) > 0:
             origin = vectors_trans[0]
             # Plot Data Origin
@@ -186,11 +189,10 @@ def add_drift_info_to_plot(ax, dca, add_anchor, add_vectors):
     for i, vec in enumerate(vectors_trans[start_idx:]):
         if i >= len(labels): break
 
-        # Calculate the raw vector difference
-        dx = vec[0] - origin[0]
-        dy = vec[1] - origin[1]
-
-        if add_anchor:
+        if actually_add_anchor:
+            # Calculate the raw vector difference from the anchor point
+            dx = vec[0] - origin[0]
+            dy = vec[1] - origin[1]
             # Apply the SCALAR scale_factor to both dx and dy
             ax.arrow(0, 0, dx * scale_factor, dy * scale_factor, 
                         color=colors[i], width=width, length_includes_head=True, zorder=20)
@@ -208,3 +210,85 @@ def add_drift_info_to_plot(ax, dca, add_anchor, add_vectors):
             ax.text(vec[0] * scale_factor * 1.15, vec[1] * scale_factor * 1.15, 
                     labels[i], color=colors[i], fontsize=16, ha='center', va='center', fontweight='bold', 
                     bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="none"))
+
+def create_empty_plot(xlabel, ylabel, title):
+    """Create an empty patchworklib Brick to draw arrows on."""
+    ax = pw.Brick(figsize=(10, 8))
+    ax.set(xlabel=xlabel, ylabel=ylabel)
+    ax.set_title(title, fontsize=42)
+    return ax
+
+def add_unscaled_biplot_arrows(ax, pca, feature_names=None):
+    """Add unscaled raw biplot arrows (loadings) to the plot."""
+    loadings = pca.components_[:2].T
+    
+    # We set limits here dynamically to make sure the arrows fit.
+    max_val = np.max(np.abs(loadings)) * 1.5
+    if max_val == 0:
+        max_val = 1.0
+    
+    current_xlim = ax.get_xlim()
+    current_ylim = ax.get_ylim()
+    
+    # Only expand limits, don't shrink them if they are already larger
+    new_xlim = (min(-max_val, current_xlim[0]), max(max_val, current_xlim[1]))
+    new_ylim = (min(-max_val, current_ylim[0]), max(max_val, current_ylim[1]))
+    ax.set_xlim(*new_xlim)
+    ax.set_ylim(*new_ylim)
+    
+    width = 0.005 * (new_xlim[1] - new_xlim[0])
+    
+    for i, arrow in enumerate(loadings):
+        ax.arrow(
+            0, 0, arrow[0], arrow[1],
+            color="k", alpha=0.5, width=width, ec="none",
+            length_includes_head=True, zorder=10
+        )
+        label = feature_names[i] if feature_names is not None else f"F{i + 1}"
+        ax.text(
+            arrow[0] * 1.1, arrow[1] * 1.1, label,
+            ha="center", va="center", fontsize=18, fontweight="bold",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7, edgecolor="none"),
+            zorder=11,
+        )
+
+def add_unscaled_drift_info_to_plot(ax, dca, add_vectors):
+    """Add unscaled drift vectors acting from origin (0,0)."""
+    if not add_vectors or dca.diff_vectors is None:
+        return
+        
+    vectors_trans = dca.transform(dca.diff_vectors)
+    
+    labels = ['Mean Increase', 'Std Increase']
+    colors = ['#7802b8', 'green']
+    
+    # Start idx based on whether anchor point was generated in diff_vectors
+    start_idx = 1 if dca.add_anchor_point else 0
+    
+    # Update limits dynamically
+    max_val = np.max(np.abs(vectors_trans[start_idx:])) * 1.5
+    if max_val == 0: max_val = 1.0
+    
+    current_xlim = ax.get_xlim()
+    current_ylim = ax.get_ylim()
+    new_xlim = (min(-max_val, current_xlim[0]), max(max_val, current_xlim[1]))
+    new_ylim = (min(-max_val, current_ylim[0]), max(max_val, current_ylim[1]))
+    ax.set_xlim(*new_xlim)
+    ax.set_ylim(*new_ylim)
+    
+    width = 0.005 * (new_xlim[1] - new_xlim[0])
+    
+    for i, vec in enumerate(vectors_trans[start_idx:]):
+        if i >= len(labels): break
+        
+        # Draw from 0,0 since SVD/no-anchor implies differences are the vectors directly
+        ax.arrow(
+            0, 0, vec[0], vec[1],
+            color=colors[i], width=width, length_includes_head=True, zorder=20
+        )
+        
+        ax.text(
+            vec[0] * 1.15, vec[1] * 1.15, labels[i],
+            color=colors[i], fontsize=16, ha='center', va='center', fontweight='bold',
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="none")
+        )

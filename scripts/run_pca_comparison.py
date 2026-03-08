@@ -19,7 +19,10 @@ import patchworklib as pw
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from analysis_methods.visualization_utils import create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot
+from analysis_methods.visualization_utils import (
+    create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot,
+    create_empty_plot, add_unscaled_biplot_arrows, add_unscaled_drift_info_to_plot
+)
 from analysis_methods.drift_component_analysis import DriftComponentAnalysis
 
 
@@ -237,7 +240,7 @@ def run_comparison(args):
             X_pca_post_vis = pca.transform(X_vis_post)
             
             # Drift PCA
-            dca = DriftComponentAnalysis(n_components=2, add_anchor_point=args.add_anchor_point)
+            dca = DriftComponentAnalysis(n_components=2, add_anchor_point=args.add_anchor_point, use_svd=args.use_svd)
             t0 = time.time()
             dca.fit(X_train_pre, X_train_post)
             dca_fit_time = time.time() - t0
@@ -339,13 +342,30 @@ def run_comparison(args):
             add_biplot_arrows(fig_d3, dca.pca, X_dca_combined, feature_names=vis_features)
             add_drift_info_to_plot(fig_d3, dca, args.add_anchor_point, args.add_drift_vectors)
 
-            
             # Combine
             final_utils = (fig_p1 | fig_p2) / (fig_d1 | fig_d2) / (fig_p3 | fig_d3)
             
             out_name = os.path.join(output_dir, f"comparison_O-{orient_name}_V-{vis_name}.png")
             final_utils.savefig(out_name, dpi=120)
             logger.info(f"Saved {out_name}")
+            
+            # Arrows-only plots (Unscaled, No Data Points)
+            fig_a1 = create_empty_plot("D1", "D2", f"Drift PCA Arrows ({orient_name}) on Pre {vis_name}")
+            add_unscaled_biplot_arrows(fig_a1, dca.pca, feature_names=vis_features)
+            add_unscaled_drift_info_to_plot(fig_a1, dca, args.add_drift_vectors)
+            fig_a1.axvline(0, color='k', linestyle='--')
+            fig_a1.axhline(0, color='k', linestyle='--')
+            
+            fig_a2 = create_empty_plot("D1", "D2", f"Drift PCA Arrows ({orient_name}) on Post {vis_name}")
+            add_unscaled_biplot_arrows(fig_a2, dca.pca, feature_names=vis_features)
+            add_unscaled_drift_info_to_plot(fig_a2, dca, args.add_drift_vectors)
+            fig_a2.axvline(0, color='k', linestyle='--')
+            fig_a2.axhline(0, color='k', linestyle='--')
+            
+            final_arrows = (fig_a1 | fig_a2)
+            out_name_arrows = os.path.join(output_dir, f"comparison_arrows_O-{orient_name}_V-{vis_name}.png")
+            final_arrows.savefig(out_name_arrows, dpi=120)
+            logger.info(f"Saved {out_name_arrows}")
 
 if __name__ == "__main__":
     import argparse
@@ -355,6 +375,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default="sea", help="Name of the dataset (e.g., sea, elec)")
     parser.add_argument("--add_anchor_point", action='store_true', help="Add anchor point to Drift PCA")
     parser.add_argument("--add_drift_vectors", action='store_true', help="Add drift vectors to plots")
+    parser.add_argument("--use_svd", action='store_true', help="Use TruncatedSVD instead of PCA")
 
     args = parser.parse_args()
     

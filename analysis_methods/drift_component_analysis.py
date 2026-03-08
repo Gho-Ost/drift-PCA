@@ -13,11 +13,17 @@ class DriftComponentAnalysis:
     It can compute drift globally or per-class.
     """
     
-    def __init__(self, n_components=2, by_class=False, add_anchor_point=False):
+    def __init__(self, n_components=2, by_class=False, add_anchor_point=False, use_svd=False):
         self.n_components = n_components
         self.by_class = by_class
+        self.use_svd = use_svd
         self.add_anchor_point = add_anchor_point
-        self.pca = PCA(n_components=n_components) # TruncatedSVD
+        if self.use_svd:
+            logger.info("Using TruncatedSVD; anchor point is disabled as data is inherently unshifted.")
+            self.add_anchor_point = False
+            self.pca = TruncatedSVD(n_components=n_components)
+        else:
+            self.pca = PCA(n_components=n_components)
         self.components_ = None
         self.diff_vectors = None
         

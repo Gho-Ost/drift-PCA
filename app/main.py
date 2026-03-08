@@ -9,7 +9,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.generate_synthetic_drift import create_synthetic_drift
 from analysis_methods.drift_component_analysis import DriftComponentAnalysis
-from analysis_methods.visualization_utils import create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot
+from analysis_methods.visualization_utils import (
+    create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot,
+    create_empty_plot, add_unscaled_biplot_arrows, add_unscaled_drift_info_to_plot
+)
 import patchworklib as pw
 
 # Page Config
@@ -49,6 +52,8 @@ for i in range(num_features):
 # Grouped toggle for Vectors & Anchor Point
 st.sidebar.subheader("Visualization Options")
 show_drift_info = st.sidebar.checkbox("Visualize Drift Vectors & Anchor Point", value=True)
+use_svd = st.sidebar.checkbox("Use TruncatedSVD instead of PCA", value=False)
+show_arrows_only = st.sidebar.checkbox("Show Unscaled Arrows-Only Plot", value=False)
 
 if st.sidebar.button("Generate & Visualize", type="primary"):
     with st.spinner("Generating dataset and computing Drift PCA..."):
@@ -66,7 +71,7 @@ if st.sidebar.button("Generate & Visualize", type="primary"):
         feature_names = [str(i) for i in range(num_features)]
 
         # 2. Fit Drift PCA
-        dca = DriftComponentAnalysis(n_components=2, add_anchor_point=show_drift_info)
+        dca = DriftComponentAnalysis(n_components=2, add_anchor_point=show_drift_info, use_svd=use_svd)
         dca.fit(X_pre, X_post)
         
         X_dca_pre_vis = dca.transform(X_pre)
@@ -127,3 +132,24 @@ if st.sidebar.button("Generate & Visualize", type="primary"):
         
         # Display the image buffer
         st.image(buf, width='stretch')
+
+        if show_arrows_only:
+            st.subheader("Arrows-Only Visualization")
+            fig_a1 = create_empty_plot("D1", "D2", "Drift PCA Arrows on Pre-Drift Data")
+            add_unscaled_biplot_arrows(fig_a1, dca.pca, feature_names=feature_names)
+            add_unscaled_drift_info_to_plot(fig_a1, dca, show_drift_info)
+            fig_a1.axvline(0, color='k', linestyle='--')
+            fig_a1.axhline(0, color='k', linestyle='--')
+            
+            fig_a2 = create_empty_plot("D1", "D2", "Drift PCA Arrows on Post-Drift Data")
+            add_unscaled_biplot_arrows(fig_a2, dca.pca, feature_names=feature_names)
+            add_unscaled_drift_info_to_plot(fig_a2, dca, show_drift_info)
+            fig_a2.axvline(0, color='k', linestyle='--')
+            fig_a2.axhline(0, color='k', linestyle='--')
+            
+            final_arrows = (fig_a1 | fig_a2)
+            
+            buf_arr = io.BytesIO()
+            final_arrows.savefig(buf_arr, format="png", dpi=120)
+            buf_arr.seek(0)
+            st.image(buf_arr, width='stretch')
