@@ -292,3 +292,74 @@ def add_unscaled_drift_info_to_plot(ax, dca, add_vectors):
             color=colors[i], fontsize=16, ha='center', va='center', fontweight='bold',
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="none")
         )
+
+def plot_decision_boundaries_comparison(X_pre, y_pre, X_post, y_post, 
+                                        model_pre, model_post,
+                                        pca_model, dca_model,
+                                        grid_points=200, use_proba=True):
+    """
+    Plots decision boundaries in a 2x2 grid comparing PCA and DCA for Pre and Post drift data.
+    """
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharey=False, sharex=False)
+    
+    # Configuration for the 4 subplots
+    plot_configs = [
+        (axes[0, 0], X_pre, y_pre, pca_model, model_pre, "PCA on Pre-Drift Data (Reference Model)"),
+        (axes[0, 1], X_post, y_post, pca_model, model_post, "PCA on Post-Drift Data (New Model)"),
+        (axes[1, 0], X_pre, y_pre, dca_model, model_pre, "DCA on Pre-Drift Data (Reference Model)"),
+        (axes[1, 1], X_post, y_post, dca_model, model_post, "DCA on Post-Drift Data (New Model)")
+    ]
+    
+    contour = None
+    
+    for ax, X_data, y_data, projector, current_model, subtitle in plot_configs:
+        # Transform data to 2D
+        X_proj = projector.transform(X_data)
+        
+        # Define grid boundaries
+        x_min, x_max = X_proj[:, 0].min() - 1, X_proj[:, 0].max() + 1
+        y_min, y_max = X_proj[:, 1].min() - 1, X_proj[:, 1].max() + 1
+        
+        # Create grid
+        xx, yy = np.meshgrid(np.linspace(x_min, x_max, grid_points),
+                             np.linspace(y_min, y_max, grid_points))
+        grid_2d = np.c_[xx.ravel(), yy.ravel()]
+        
+        # Inverse transform to N-dimensional space
+        grid_nd = projector.inverse_transform(grid_2d)
+        
+        # Predict using the assigned N-dimensional model for this subplot
+        if use_proba and hasattr(current_model, "predict_proba"):
+            Z = current_model.predict_proba(grid_nd)[:, 1]
+            cmap = plt.cm.RdBu
+            levels = np.linspace(0, 1, 21)
+        else:
+            Z = current_model.predict(grid_nd)
+            cmap = plt.cm.RdYlBu
+            levels = None
+            
+        Z = Z.reshape(xx.shape)
+        
+        # Plot contours and data
+        if use_proba:
+            contour = ax.contourf(xx, yy, Z, levels=levels, alpha=0.8, cmap=cmap, vmin=0, vmax=1)
+        else:
+            ax.contourf(xx, yy, Z, alpha=0.4, cmap=cmap)
+            
+        ax.scatter(X_proj[:, 0], X_proj[:, 1], c=y_data, 
+                   s=40, edgecolor='k', cmap=plt.cm.RdYlBu, alpha=0.8)
+        
+        ax.set_title(subtitle, fontsize=14)
+        ax.set_xlabel("Component 1")
+        if ax in [axes[0, 0], axes[1, 0]]:
+            ax.set_ylabel("Component 2")
+            
+    if use_proba and contour:
+        # Add colorbar globally to the right
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+        fig.colorbar(contour, cax=cbar_ax, label="Probability of Class 1")
+        plt.subplots_adjust(right=0.9, hspace=0.3)
+    else:
+        plt.tight_layout()
+        
+    return fig

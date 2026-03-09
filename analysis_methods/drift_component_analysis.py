@@ -107,3 +107,7 @@ class DriftComponentAnalysis:
         
     def transform(self, X):
         return self.pca.transform(X)
+
+    def inverse_transform(self, X):
+        """Transform data back to its original space."""
+        return self.pca.inverse_transform(X)

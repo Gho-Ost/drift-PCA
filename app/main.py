@@ -3,6 +3,7 @@ import numpy as np
 import sys
 import os
 import matplotlib.pyplot as plt
+from sklearn.svm import SVC
 
 # Ensure scripts can be imported
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -11,7 +12,8 @@ from scripts.generate_synthetic_drift import create_synthetic_drift
 from analysis_methods.drift_component_analysis import DriftComponentAnalysis
 from analysis_methods.visualization_utils import (
     create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot,
-    create_empty_plot, add_unscaled_biplot_arrows, add_unscaled_drift_info_to_plot
+    create_empty_plot, add_unscaled_biplot_arrows, add_unscaled_drift_info_to_plot,
+    plot_decision_boundaries_comparison
 )
 import patchworklib as pw
 
@@ -54,6 +56,7 @@ st.sidebar.subheader("Visualization Options")
 show_drift_info = st.sidebar.checkbox("Visualize Drift Vectors & Anchor Point", value=True)
 use_svd = st.sidebar.checkbox("Use TruncatedSVD instead of PCA", value=False)
 show_arrows_only = st.sidebar.checkbox("Show Unscaled Arrows-Only Plot", value=False)
+show_decision_bounds = st.sidebar.checkbox("Show Decision Boundaries Comparison", value=False)
 
 if st.sidebar.button("Generate & Visualize", type="primary"):
     with st.spinner("Generating dataset and computing Drift PCA..."):
@@ -153,3 +156,32 @@ if st.sidebar.button("Generate & Visualize", type="primary"):
             final_arrows.savefig(buf_arr, format="png", dpi=120)
             buf_arr.seek(0)
             st.image(buf_arr, width='stretch')
+            
+        if show_decision_bounds:
+            st.subheader("Decision Boundaries (SVC)")
+            with st.spinner("Training SVC models and generating decision boundaries..."):
+                model_pre = SVC(kernel='rbf', probability=True, random_state=42)
+                model_post = SVC(kernel='rbf', probability=True, random_state=42)
+                
+                model_pre.fit(X_pre, y_pre)
+                model_post.fit(X_post, y_post)
+                
+                # To compare against standard PCA correctly, we need a standard PCA fit
+                from sklearn.decomposition import PCA, TruncatedSVD
+                if use_svd:
+                    pca_standard = TruncatedSVD(n_components=2).fit(X_pre)
+                else:
+                    pca_standard = PCA(n_components=2).fit(X_pre)
+                
+                fig_db = plot_decision_boundaries_comparison(
+                    X_pre, y_pre, X_post, y_post,
+                    model_pre, model_post,
+                    pca_model=pca_standard, dca_model=dca,
+                    grid_points=200, use_proba=True
+                )
+                
+                buf_db = io.BytesIO()
+                fig_db.savefig(buf_db, format="png", dpi=120, bbox_inches='tight')
+                buf_db.seek(0)
+                plt.close(fig_db)
+                st.image(buf_db, width='stretch')

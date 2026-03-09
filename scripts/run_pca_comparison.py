@@ -11,6 +11,7 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
 
 import matplotlib.pyplot as plt
 import patchworklib as pw
@@ -21,7 +22,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analysis_methods.visualization_utils import (
     create_scatter_plot, add_biplot_arrows, add_drift_info_to_plot,
-    create_empty_plot, add_unscaled_biplot_arrows, add_unscaled_drift_info_to_plot
+    create_empty_plot, add_unscaled_biplot_arrows, add_unscaled_drift_info_to_plot,
+    plot_decision_boundaries_comparison
 )
 from analysis_methods.drift_component_analysis import DriftComponentAnalysis
 
@@ -367,6 +369,28 @@ def run_comparison(args):
             final_arrows.savefig(out_name_arrows, dpi=120)
             logger.info(f"Saved {out_name_arrows}")
 
+            # Decision Boundaries
+            if getattr(args, 'add_decision_boundaries', False) and orient_name == "Data" and vis_name == "Data":
+                logger.info("Training SVC models for Decision Boundaries...")
+                model_pre = SVC(kernel='rbf', probability=True, random_state=42)
+                model_post = SVC(kernel='rbf', probability=True, random_state=42)
+                
+                model_pre.fit(X_train_pre, y_vis_pre)
+                model_post.fit(X_train_post, y_vis_post) # TODO WARNING - train post is scaled with pre data scaler - fix?
+                
+                logger.info("Plotting Decision Boundaries...")
+                fig_db = plot_decision_boundaries_comparison(
+                    X_vis_pre, y_vis_pre, X_vis_post, y_vis_post,
+                    model_pre, model_post,
+                    pca_model=pca, dca_model=dca,
+                    grid_points=200, use_proba=True
+                )
+                
+                out_name_db = os.path.join(output_dir, f"comparison_boundaries_O-{orient_name}_V-{vis_name}.png")
+                fig_db.savefig(out_name_db, dpi=120, bbox_inches='tight')
+                plt.close(fig_db)
+                logger.info(f"Saved {out_name_db}")
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Run Drift PCA Comparison")
@@ -376,6 +400,7 @@ if __name__ == "__main__":
     parser.add_argument("--add_anchor_point", action='store_true', help="Add anchor point to Drift PCA")
     parser.add_argument("--add_drift_vectors", action='store_true', help="Add drift vectors to plots")
     parser.add_argument("--use_svd", action='store_true', help="Use TruncatedSVD instead of PCA")
+    parser.add_argument("--add_decision_boundaries", action='store_true', help="Generate 2x2 decision boundary comparison plot")
 
     args = parser.parse_args()
     

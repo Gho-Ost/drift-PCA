@@ -53,6 +53,7 @@ def run_all_datasets(args):
             "--results_dir", args.results_dir,
             "--use_svd",
             "--add_drift_vectors",
+            "--add_decision_boundaries"
             # "--add_anchor_point"
         ]
         
