@@ -4,6 +4,75 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+class DriftComponentAnalysis2:
+    """
+    Drift-Oriented PCA implementation utilizing TruncatedSVD.
+    Computes diff between mean and std vectors for 2 specific classes
+    and performs SVD on those difference vectors.
+    """
+    def __init__(self, n_components=2, by_class=False):
+        self.n_components = n_components
+        self.by_class = by_class
+        self.pca = TruncatedSVD(n_components=n_components)
+        self.diff_vectors = None
+        
+    def fit(self, X_ref, X_cur, y_ref, y_cur):
+        X_ref = np.array(X_ref)
+        X_cur = np.array(X_cur)
+        y_ref = np.array(y_ref)
+        y_cur = np.array(y_cur)
+        
+        diff_vectors = []
+        if self.by_class:
+            classes = np.intersect1d(np.unique(y_ref), np.unique(y_cur))
+            if len(classes) != 2:
+                logger.warning(f"Expected 2 classes, found {len(classes)}. This method is optimized for binary classification.")
+                
+            for c in classes:
+                X_ref_c = X_ref[y_ref == c]
+                X_cur_c = X_cur[y_cur == c]
+                
+                if len(X_ref_c) < 2 or len(X_cur_c) < 2:
+                    continue
+                    
+                mean_ref = np.mean(X_ref_c, axis=0)
+                std_ref = np.std(X_ref_c, axis=0)
+                mean_cur = np.mean(X_cur_c, axis=0)
+                std_cur = np.std(X_cur_c, axis=0)
+                
+                diff_vectors.append(mean_cur - mean_ref)
+                diff_vectors.append(std_cur - std_ref)
+        else:
+            mean_ref = np.mean(X_ref, axis=0)
+            std_ref = np.std(X_ref, axis=0)
+            mean_cur = np.mean(X_cur, axis=0)
+            std_cur = np.std(X_cur, axis=0)
+            
+            diff_vectors.append(mean_cur - mean_ref)
+            diff_vectors.append(std_cur - std_ref)
+            
+        self.diff_vectors = np.array(diff_vectors)
+        
+        if len(self.diff_vectors) == 0 or np.all(self.diff_vectors == 0):
+            logger.warning("No drift detected, fitting on X_ref")
+            self.pca.fit(X_ref)
+        else:
+            self.pca.fit(self.diff_vectors)
+            
+        return self
+        
+    def transform(self, X):
+        return self.pca.transform(X)
+        
+    def inverse_transform(self, X):
+        return self.pca.inverse_transform(X)
+        
+    @property
+    def explained_variance_ratio_(self):
+        """Returns the explained variance ratio from the SVD model"""
+        return self.pca.explained_variance_ratio_
+
 class DriftComponentAnalysis:
     """
     Drift-Oriented PCA implementation.
