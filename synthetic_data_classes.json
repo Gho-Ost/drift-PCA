@@ -1,0 +1,46 @@
+[
+    {
+        "name": "12_class_dependent_drift_mean",
+        "desc": "Mean shift in class 1 only, class 0 stays the same",
+        "means_pre_c0": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre_c0": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_pre_c1": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_pre_c1": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post_c0": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "stds_post_c0": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "means_post_c1": [
+            0.0,
+            0.0,
+            5.0
+        ],
+        "stds_post_c1": [
+            1.0,
+            1.0,
+            1.0
+        ]
+    }
+]

@@ -62,7 +62,8 @@ def run_dca():
     parser.add_argument("--model", type=str, choices=["svc", "rf"], default="svc", help="Pre-drift model to use for boundary")
     parser.add_argument("--no_boundary", action="store_true", help="Do not draw decision boundary")
     parser.add_argument("--by_class", action="store_true", help="Calculate drift vectors separated by class")
-    
+    parser.add_argument("--scale_loadings", action="store_true", help="Scale feature loadings by singular values in the Biplot")
+
     args = parser.parse_args()
 
     os.makedirs(args.results_dir, exist_ok=True)
@@ -109,7 +110,7 @@ def run_dca():
         plt.subplots_adjust(right=0.88, hspace=0.3, wspace=0.3)
 
     # Plot 2: Loadings Compass Rose (Bottom Left)
-    plot_loadings_compass(dca, ax=ax_loadings, feature_names=feature_names)
+    plot_loadings_compass(dca, ax=ax_loadings, feature_names=feature_names, scale_loadings=args.scale_loadings)
 
     # Plot 3: Drift Compass Rose (Bottom Right)
     plot_drift_compass(dca, ax=ax_drift, classes=classes)

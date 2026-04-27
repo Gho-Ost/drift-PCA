@@ -95,21 +95,35 @@ def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax, pre_drift_model=None
     ax.axvline(0, color='grey', linestyle='--', alpha=0.5)
     
     # Display Variance Info
-    evr = dca.explained_variance_ratio_
-    ax.set_xlabel(f"Component 1 (Explained Var: {evr[0]*100:.1f}%)")
-    ax.set_ylabel(f"Component 2 (Explained Var: {evr[1]*100:.1f}%)" if len(evr) > 1 else "Component 2")
+    # evr = dca.explained_variance_ratio_
+    # ax.set_xlabel(f"Component 1 (Explained Var: {evr[0]*100:.1f}%)")
+    # ax.set_ylabel(f"Component 2 (Explained Var: {evr[1]*100:.1f}%)" if len(evr) > 1 else "Component 2")
+    
+    # Display Energy Info
+    eer = dca.explained_energy_ratio_
+    # eer = dca.loading_scale_factors_
+    ax.set_xlabel(f"Component 1 (Explained Energy: {eer[0]*100:.1f}%)")
+    ax.set_ylabel(f"Component 2 (Explained Energy: {eer[1]*100:.1f}%)" if len(eer) > 1 else "Component 2")
+
     ax.set_title("DCA Output: Pre vs Post Drift Data")
     
     return contour
 
-def plot_loadings_compass(dca, ax, feature_names=None):
+def plot_loadings_compass(dca, ax, feature_names=None, scale_loadings=False):
     """
-    Plots a compass rose containing unscaled loadings (PCA components representation).
+    Plots a compass rose containing loadings (PCA components representation).
+    Optionally scales them by the raw singular values.
     """
     loadings = dca.pca.components_[:2].T
+    if scale_loadings:
+        loadings = loadings * dca.loading_scale_factors_[:2]
+        title_suffix = "Scaled"
+    else:
+        title_suffix = "Unscaled"
     
     ax.axhline(0, color='grey', linestyle='--', alpha=0.5)
     ax.axvline(0, color='grey', linestyle='--', alpha=0.5)
+    ax.set_aspect('equal')
     
     max_val = np.max(np.abs(loadings)) * 1.2
     if max_val == 0:
@@ -126,17 +140,24 @@ def plot_loadings_compass(dca, ax, feature_names=None):
         ax.text(arrow[0] * 1.1, arrow[1] * 1.1, label, ha='center', va='center', fontsize=12,
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7, edgecolor="none"))
                 
-    ax.set_title("Loadings Compass Rose (Unscaled)")
-    evr = dca.explained_variance_ratio_
-    ax.set_xlabel(f"Component 1 ({evr[0]*100:.1f}%)")
-    ax.set_ylabel(f"Component 2 ({evr[1]*100:.1f}%)" if len(evr) > 1 else "Component 2")
+    # ax.set_title("Loadings Compass Rose (Unscaled)")
+    # evr = dca.explained_variance_ratio_
+    # ax.set_xlabel(f"Component 1 ({evr[0]*100:.1f}%)")
+    # ax.set_ylabel(f"Component 2 ({evr[1]*100:.1f}%)" if len(evr) > 1 else "Component 2")
+
+    ax.set_title(f"Loadings Compass Rose ({title_suffix})")
+    eer = dca.explained_energy_ratio_
+    # eer = dca.loading_scale_factors_
+    ax.set_xlabel(f"Component 1 ({eer[0]*100:.1f}%)")
+    ax.set_ylabel(f"Component 2 ({eer[1]*100:.1f}%)" if len(eer) > 1 else "Component 2")
 
 def plot_drift_compass(dca, ax, classes=None):
     """
-    Plots a compass rose containing unscaled differences of Mean and Std deviations mapped to PCA.
+    Plots a compass rose containing differences of Mean and Std deviations mapped to PCA.
     """
     ax.axhline(0, color='grey', linestyle='--', alpha=0.5)
     ax.axvline(0, color='grey', linestyle='--', alpha=0.5)
+    ax.set_aspect('equal')
     
     if dca.diff_vectors is None or len(dca.diff_vectors) == 0:
         ax.set_title("Drift Compass: No drift vectors found")
@@ -173,7 +194,13 @@ def plot_drift_compass(dca, ax, classes=None):
                 fontsize=11, fontweight='bold',
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8, edgecolor="none"))
                 
-    ax.set_title("Drift Mean/Std Compass Rose (Unscaled)")
-    evr = dca.explained_variance_ratio_
-    ax.set_xlabel(f"Component 1 ({evr[0]*100:.1f}%)")
-    ax.set_ylabel(f"Component 2 ({evr[1]*100:.1f}%)" if len(evr) > 1 else "Component 2")
+    # ax.set_title("Drift Mean/Std Compass Rose")
+    # eer = dca.explained_energy_ratio_
+    # ax.set_xlabel(f"Component 1 ({eer[0]*100:.1f}%)")
+    # ax.set_ylabel(f"Component 2 ({eer[1]*100:.1f}%)" if len(eer) > 1 else "Component 2")
+ 
+    ax.set_title("Drift Mean/Std Compass Rose")
+    eer = dca.explained_energy_ratio_
+    # eer = dca.loading_scale_factors_
+    ax.set_xlabel(f"Component 1 ({eer[0]*100:.1f}%)")
+    ax.set_ylabel(f"Component 2 ({eer[1]*100:.1f}%)" if len(eer) > 1 else "Component 2")
