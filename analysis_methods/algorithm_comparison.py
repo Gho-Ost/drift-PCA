@@ -2,8 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.decomposition import TruncatedSVD, SparsePCA, FastICA
-from sklearn.manifold import TSNE
+from sklearn.decomposition import TruncatedSVD, PCA
 import logging
 import umap
 
@@ -22,10 +21,10 @@ class BaseFitter:
         self.explained_variance_ratio_ = None # Optional, only some support this
         self.loading_scale_factors_ = None    # Set only if we want to scale arrows
     
-    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix, strategy="pre_fit"):
+    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix):
         raise NotImplementedError
         
-    def transform(self, X_pre, X_post, strategy="pre_fit"):
+    def transform(self, X_pre, X_post):
         raise NotImplementedError
         
     def transform_vectors(self, diff_matrix):
@@ -36,7 +35,7 @@ class TruncatedSVDFitter(BaseFitter):
         super().__init__("Truncated SVD")
         self.model = TruncatedSVD(n_components=n_components, random_state=42)
         
-    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix, strategy="pre_fit"):
+    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix):
         # TruncatedSVD uniquely fits specifically to the drift vectors themselves
         if len(diff_matrix) == 0:
             logger.warning("Empty diff matrix, fitting TruncatedSVD on X_pre")
@@ -50,148 +49,55 @@ class TruncatedSVDFitter(BaseFitter):
         self.loading_scale_factors_ = self.model.singular_values_
         return self
         
-    def transform(self, X_pre, X_post, strategy="pre_fit"):
+    def transform(self, X_pre, X_post):
         return self.model.transform(X_pre), self.model.transform(X_post)
 
     def transform_vectors(self, diff_matrix):
         return self.model.transform(diff_matrix)
 
-class SparsePCAFitter(BaseFitter):
+class PCAFitter(BaseFitter):
     def __init__(self, n_components=2):
-        super().__init__("Sparse PCA")
-        self.model = SparsePCA(n_components=n_components, random_state=42)
+        super().__init__("PCA")
+        self.model = PCA(n_components=n_components, random_state=42)
         
-    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix, strategy="pre_fit"):
-        if strategy == "joint_fit":
-            self.model.fit(np.vstack([X_pre, X_post]))
-        else:
-            self.model.fit(X_pre)
-            
+    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix):
+        self.model.fit(X_pre)
         self.components_ = self.model.components_
         return self
         
-    def transform(self, X_pre, X_post, strategy="pre_fit"):
-        if strategy == "separate_fit":
-            post_model = SparsePCA(n_components=self.model.n_components, random_state=42)
-            post_model.fit(X_post)
-            return self.model.transform(X_pre), post_model.transform(X_post)
-        elif strategy == "joint_fit":
-            X_stacked = np.vstack([X_pre, X_post])
-            X_trans = self.model.transform(X_stacked)
-            return X_trans[:len(X_pre)], X_trans[len(X_pre):]
-        else: # pre_fit
-            return self.model.transform(X_pre), self.model.transform(X_post)
-
-class FastICAFitter(BaseFitter):
-    def __init__(self, n_components=2):
-        super().__init__("Fast ICA")
-        self.model = FastICA(n_components=n_components, random_state=42, max_iter=1000)
-        
-    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix, strategy="pre_fit"):
-        if strategy == "joint_fit":
-            self.model.fit(np.vstack([X_pre, X_post]))
-        else:
-            self.model.fit(X_pre)
-            
-        self.components_ = self.model.mixing_.T if self.model.mixing_ is not None else self.model.components_
-        return self
-        
-    def transform(self, X_pre, X_post, strategy="pre_fit"):
-        if strategy == "separate_fit":
-            post_model = FastICA(n_components=self.model.n_components, random_state=42, max_iter=1000)
-            X_post_trans = post_model.fit_transform(X_post)
-            return self.model.transform(X_pre), X_post_trans
-        elif strategy == "joint_fit":
-            X_stacked = np.vstack([X_pre, X_post])
-            X_trans = self.model.transform(X_stacked)
-            return X_trans[:len(X_pre)], X_trans[len(X_pre):]
-        else:
-            return self.model.transform(X_pre), self.model.transform(X_post)
-
-class TSNEFitter(BaseFitter):
-    def __init__(self, n_components=2):
-        super().__init__("t-SNE")
-        self.model = TSNE(n_components=n_components, random_state=42)
-        
-    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix, strategy="pre_fit"):
-        self.components_ = None
-        
-        if strategy == "pre_fit":
-            logger.warning("t-SNE natively prohibits .transform() functionality on unseen data. "
-                           "Injecting fail-safe: automatically collapsing to `joint_fit` for t-SNE evaluation.")
-            strategy = "joint_fit"
-            
-        if strategy == "joint_fit":
-            X_stacked = np.vstack([X_pre, X_post])
-            X_trans = self.model.fit_transform(X_stacked)
-            self._pre_emb = X_trans[:len(X_pre)]
-            self._post_emb = X_trans[len(X_pre):]
-        elif strategy == "separate_fit":
-            self._pre_emb = self.model.fit_transform(X_pre)
-            post_model = TSNE(n_components=self.model.n_components, random_state=42)
-            self._post_emb = post_model.fit_transform(X_post)
-            
-        return self
-        
-    def transform(self, X_pre, X_post, strategy="pre_fit"):
-        return self._pre_emb, self._post_emb
+    def transform(self, X_pre, X_post):
+        return self.model.transform(X_pre), self.model.transform(X_post)
 
 class UMAPFitter(BaseFitter):
     def __init__(self, n_components=2):
         super().__init__("UMAP")
         self.model = umap.UMAP(n_components=n_components, random_state=42)
         
-    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix, strategy="pre_fit"):
+    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix):
         self.components_ = None
-        if strategy == "joint_fit":
-            X_stacked = np.vstack([X_pre, X_post])
-            X_trans = self.model.fit_transform(X_stacked)
-            self._pre_emb = X_trans[:len(X_pre)]
-            self._post_emb = X_trans[len(X_pre):]
-        elif strategy == "pre_fit":
-            self.model.fit(X_pre)
+        self.model.fit(X_pre)
         return self
         
-    def transform(self, X_pre, X_post, strategy="pre_fit"):
-        if strategy == "joint_fit":
-            return self._pre_emb, self._post_emb
-        elif strategy == "separate_fit":
-            pre_emb = self.model.fit_transform(X_pre)
-            post_model = umap.UMAP(n_components=self.model.n_components, random_state=42)
-            post_emb = post_model.fit_transform(X_post)
-            return pre_emb, post_emb
-        else: # pre_fit
-            pre_emb = self.model.embedding_
-            post_emb = self.model.transform(X_post)
-            return pre_emb, post_emb
+    def transform(self, X_pre, X_post):
+        pre_emb = self.model.embedding_
+        post_emb = self.model.transform(X_post)
+        return pre_emb, post_emb
 
 class SSNPFitter(BaseFitter):
     def __init__(self, n_components=2):
         super().__init__("SSNP")
         # SSNP always outputs 2D in its bottleneck layer by default
         
-    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix, strategy="pre_fit"):
+    def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix):
         self.model = SSNP(epochs=50, verbose=0)
-        
-        if strategy == "joint_fit":
-            X_stacked = np.vstack([X_pre, X_post])
-            y_stacked = np.hstack([y_pre, y_post])
-            self.model.fit(X_stacked, y_stacked)
-        else:
-            self.model.fit(X_pre, y_pre)
+        self.model.fit(X_pre, y_pre)
         
         self.y_post = y_post
         self.components_ = None
         return self
         
-    def transform(self, X_pre, X_post, strategy="pre_fit"):
-        if strategy == "separate_fit":
-            from ssnp.code.ssnp import SSNP
-            post_model = SSNP(epochs=50, verbose=0)
-            post_model.fit(X_post, self.y_post)
-            return self.model.transform(X_pre), post_model.transform(X_post)
-        else:
-            return self.model.transform(X_pre), self.model.transform(X_post)
+    def transform(self, X_pre, X_post):
+        return self.model.transform(X_pre), self.model.transform(X_post)
 
 # --- Plotting Utilities ---
 
@@ -200,7 +106,8 @@ def plot_algorithm_scatter(X_proj, y, ax, title, is_pre=True, c0=0, c1=1):
     
     if is_pre:
         hue_order = [f"Class {c0} Pre", f"Class {c1} Pre"]
-        colors = [palette[0], palette[2]]
+        # colors = [palette[0], palette[2]]
+        colors = [palette[1], palette[3]]
         labels = np.where(y == c0, hue_order[0], hue_order[1])
     else:
         hue_order = [f"Class {c0} Post", f"Class {c1} Post"]

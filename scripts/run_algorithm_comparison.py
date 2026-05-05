@@ -11,9 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analysis_methods.algorithm_comparison import (
     TruncatedSVDFitter,
-    SparsePCAFitter,
-    FastICAFitter,
-    TSNEFitter,
+    PCAFitter,
     UMAPFitter,
     SSNPFitter,
     plot_algorithm_scatter,
@@ -51,8 +49,6 @@ def run_comparison():
     parser.add_argument("--data_dir", type=str, default="data/thu_stream_datasets", help="Directory containing the dataset files")
     parser.add_argument("--results_dir", type=str, default="results_comparison", help="Directory to save the results")
     parser.add_argument("--dataset", type=str, default="thu_linear_sudden_f5", help="Name of the dataset (without _pre.csv)")
-    parser.add_argument("--strategy", type=str, choices=["pre_fit", "joint_fit", "separate_fit"], default="pre_fit",
-                        help="Fallback fitting strategy for dimensionality methods other than Drift PCA.")
     
     args = parser.parse_args()
 
@@ -74,9 +70,7 @@ def run_comparison():
 
     fitters = [
         TruncatedSVDFitter(),
-        SparsePCAFitter(),
-        FastICAFitter(),
-        TSNEFitter(),
+        PCAFitter(),
         UMAPFitter(),
         SSNPFitter()
     ]
@@ -91,8 +85,8 @@ def run_comparison():
         logger.info(f"Running {fitter.name}...")
         
         # Fit and transform
-        fitter.fit(X_pre, X_post, y_pre, y_post, diff_matrix, strategy=args.strategy)
-        X_pre_trans, X_post_trans = fitter.transform(X_pre, X_post, strategy=args.strategy)
+        fitter.fit(X_pre, X_post, y_pre, y_post, diff_matrix)
+        X_pre_trans, X_post_trans = fitter.transform(X_pre, X_post)
         
         # Calculate shared axis limits
         x_min = min(X_pre_trans[:, 0].min(), X_post_trans[:, 0].min())
