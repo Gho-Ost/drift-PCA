@@ -9,6 +9,7 @@ import matplotlib.gridspec as gridspec
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.inspection import permutation_importance
 
 # Setup parent path so relative imports work if run as script
 import sys
@@ -79,6 +80,7 @@ def run_dca():
     parser.add_argument("--color_scheme", type=str, choices=["class", "drift"], default=None, help="Color scheme for plots")
     parser.add_argument("--highlight_misclassifications", action="store_true", help="Highlight post-drift points misclassified by the pre-drift model")
     parser.add_argument("--hide_pre_drift_points", action="store_true", help="Do not draw pre-drift points on the scatter plot")
+    parser.add_argument("--feature_importance", action="store_true", help="Use model explainability to color code feature importance on the Loadings compass rose")
 
     args = parser.parse_args()
 
@@ -112,6 +114,12 @@ def run_dca():
             logger.warning("Misclassifications cannot be highlighted without class targets. Disabling highlight.")
             args.highlight_misclassifications = False
 
+    # Validate feature_importance
+    if args.feature_importance:
+        if args.drift_mode == "data" or args.no_target or len(classes) < 2:
+            logger.warning("Feature importance requires class targets. Disabling feature importance.")
+            args.feature_importance = False
+
     # Validate boundary
     if not args.no_boundary:
         if color_scheme == "drift":
@@ -120,7 +128,7 @@ def run_dca():
         elif args.drift_mode == "data" or args.no_target or len(classes) < 2:
             args.no_boundary = True
 
-    needs_model = (not args.no_boundary) or args.highlight_misclassifications
+    needs_model = (not args.no_boundary) or args.highlight_misclassifications or args.feature_importance
 
     # Train model on Pre-drift data ONLY
     pre_drift_model = None
@@ -131,6 +139,12 @@ def run_dca():
             pre_drift_model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
             
         pre_drift_model.fit(X_pre, y_pre)
+
+    feature_importances = None
+    if args.feature_importance and pre_drift_model is not None:
+        logger.info("Calculating feature importances using permutation importance...")
+        result = permutation_importance(pre_drift_model, X_pre, y_pre, n_repeats=5, random_state=42, n_jobs=-1)
+        feature_importances = np.maximum(result.importances_mean, 0)
 
     # Fit DriftComponentAnalysis2 using SVD
     by_class = (args.drift_mode == "per-class")
@@ -167,7 +181,7 @@ def run_dca():
         plt.subplots_adjust(right=0.88, hspace=0.3, wspace=0.3)
 
     # Plot 2: Loadings Compass Rose (Bottom Left)
-    plot_loadings_compass(dca, ax=ax_loadings, feature_names=feature_names, scale_loadings=(not args.unscaled_loadings))
+    plot_loadings_compass(dca, ax=ax_loadings, feature_names=feature_names, scale_loadings=(not args.unscaled_loadings), feature_importances=feature_importances)
 
     # Plot 3: Drift Compass Rose (Bottom Right)
     plot_drift_compass(dca, ax=ax_drift, classes=classes if args.drift_mode != "data" else None, color_scheme=color_scheme)

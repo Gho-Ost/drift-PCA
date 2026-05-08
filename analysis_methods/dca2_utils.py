@@ -174,10 +174,11 @@ def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax, pre_drift_model=None
     
     return contour, is_discrete
 
-def plot_loadings_compass(dca, ax, feature_names=None, scale_loadings=False):
+def plot_loadings_compass(dca, ax, feature_names=None, scale_loadings=False, feature_importances=None):
     """
     Plots a compass rose containing loadings (PCA components representation).
     Optionally scales them by the raw singular values.
+    If feature_importances are provided, colors the arrows by importance and adds a colorbar.
     """
     loadings = dca.pca.components_[:2].T
     if scale_loadings:
@@ -197,14 +198,28 @@ def plot_loadings_compass(dca, ax, feature_names=None, scale_loadings=False):
     ax.set_xlim(-max_val, max_val)
     ax.set_ylim(-max_val, max_val)
     
+    if feature_importances is not None:
+        norm = mcolors.Normalize(vmin=np.min(feature_importances), vmax=np.max(feature_importances))
+        cmap = plt.get_cmap('inferno_r') # Grays
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+        colors = cmap(norm(feature_importances))
+    else:
+        colors = ["k"] * len(loadings)
+
     for i, arrow in enumerate(loadings):
-        ax.arrow(0, 0, arrow[0], arrow[1], color="k", alpha=0.7, 
+        color = colors[i]
+        ax.arrow(0, 0, arrow[0], arrow[1], color=color, alpha=0.8, 
                  width=0.005*max_val, length_includes_head=True, zorder=10)
         
         label = feature_names[i] if feature_names is not None else f"F{i+1}"
         ax.text(arrow[0] * 1.1, arrow[1] * 1.1, label, ha='center', va='center', fontsize=12,
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7, edgecolor="none"))
                 
+    if feature_importances is not None:
+        cbar = plt.colorbar(sm, ax=ax, shrink=0.8, pad=0.05)
+        cbar.set_label('Feature Importance')
+
     # ax.set_title("Loadings Compass Rose (Unscaled)")
     # evr = dca.explained_variance_ratio_
     # ax.set_xlabel(f"Component 1 ({evr[0]*100:.1f}%)")
