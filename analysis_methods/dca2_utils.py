@@ -54,6 +54,8 @@ def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax, pre_drift_model=None
     
     # Draw decision boundary based purely on PRE-DRIFT model
     if pre_drift_model is not None and draw_boundary:
+        logger.info("Drawing decision boundary...")
+        
         all_proj = np.vstack([X_pre_proj, X_post_proj])
         x_min, x_max = all_proj[:, 0].min() - 1, all_proj[:, 0].max() + 1
         y_min, y_max = all_proj[:, 1].min() - 1, all_proj[:, 1].max() + 1

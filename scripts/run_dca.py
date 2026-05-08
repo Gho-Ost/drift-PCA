@@ -138,6 +138,7 @@ def run_dca():
         else:
             pre_drift_model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
             
+        logger.info(f"Training {args.model} model on Pre-drift data...")
         pre_drift_model.fit(X_pre, y_pre)
 
     feature_importances = None
