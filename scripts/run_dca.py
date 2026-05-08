@@ -24,8 +24,8 @@ from analysis_methods.dca2_utils import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-def load_and_scale_binary_data(dataset_name="sea", data_dir="stream_datasets"):
-    """Load pre and post drift data, verifying it is binary."""
+def load_and_scale_data(dataset_name="sea", data_dir="stream_datasets", ignore_classes=False, has_target=True):
+    """Load pre and post drift data."""
     pre_path = os.path.join(data_dir, f"{dataset_name}_pre.csv")
     post_path = os.path.join(data_dir, f"{dataset_name}_post.csv")
 
@@ -35,17 +35,27 @@ def load_and_scale_binary_data(dataset_name="sea", data_dir="stream_datasets"):
     df_pre = pd.read_csv(pre_path)
     df_post = pd.read_csv(post_path)
 
-    X_pre = df_pre.iloc[:, :-1].values
-    y_pre = df_pre.iloc[:, -1].values
-    X_post = df_post.iloc[:, :-1].values
-    y_post = df_post.iloc[:, -1].values
-    
-    feature_names = list(df_pre.columns[:-1])
+    if has_target:
+        X_pre = df_pre.iloc[:, :-1].values
+        y_pre = df_pre.iloc[:, -1].values
+        X_post = df_post.iloc[:, :-1].values
+        y_post = df_post.iloc[:, -1].values
+        feature_names = list(df_pre.columns[:-1])
+    else:
+        X_pre = df_pre.values
+        X_post = df_post.values
+        y_pre = np.zeros(len(X_pre), dtype=int)
+        y_post = np.zeros(len(X_post), dtype=int)
+        feature_names = list(df_pre.columns)
 
-    # Check for binary classification
-    classes = np.unique(np.concatenate([y_pre, y_post]))
-    if len(classes) != 2:
-        raise ValueError(f"Dataset {dataset_name} has {len(classes)} classes, but DCA2 requires exactly 2 classes.")
+    if ignore_classes or not has_target:
+        y_pre = np.zeros(len(X_pre), dtype=int)
+        y_post = np.zeros(len(X_post), dtype=int)
+        classes = np.array([0])
+    else:
+        classes = np.unique(np.concatenate([y_pre, y_post]))
+        if len(classes) > 6:
+            raise ValueError(f"Dataset {dataset_name} has {len(classes)} classes. Maximum supported is 6.")
 
     # Scale data
     scaler = StandardScaler()
@@ -61,24 +71,60 @@ def run_dca():
     parser.add_argument("--dataset", type=str, default="sea", help="Name of the dataset")
     parser.add_argument("--model", type=str, choices=["svc", "rf"], default="svc", help="Pre-drift model to use for boundary")
     parser.add_argument("--no_boundary", action="store_true", help="Do not draw decision boundary")
-    parser.add_argument("--by_class", action="store_true", help="Calculate drift vectors separated by class")
-    parser.add_argument("--scale_loadings", action="store_true", help="Scale feature loadings by singular values in the Biplot")
+    parser.add_argument("--discrete_boundary", action="store_true", help="Display hard decision boundaries instead of class probabilities")
+    parser.add_argument("--drift_mode", type=str, choices=["data", "global", "per-class"], default="global", 
+                        help="Drift calculation mode: 'data' (ignore classes), 'global' (use classes but calc global drift), 'per-class' (calc drift per class)")
+    parser.add_argument("--no_target", action="store_true", help="Dataset does not have a target/class column. All columns will be used as features.")
+    parser.add_argument("--unscaled_loadings", action="store_true", help="Disable scaling of feature loadings by singular values in the Biplot")
+    parser.add_argument("--color_scheme", type=str, choices=["class", "drift"], default=None, help="Color scheme for plots")
+    parser.add_argument("--highlight_misclassifications", action="store_true", help="Highlight post-drift points misclassified by the pre-drift model")
+    parser.add_argument("--hide_pre_drift_points", action="store_true", help="Do not draw pre-drift points on the scatter plot")
 
     args = parser.parse_args()
 
     os.makedirs(args.results_dir, exist_ok=True)
     
     try:
-        X_pre, y_pre, X_post, y_post, feature_names, classes = load_and_scale_binary_data(
-            dataset_name=args.dataset, data_dir=args.data_dir
+        X_pre, y_pre, X_post, y_post, feature_names, classes = load_and_scale_data(
+            dataset_name=args.dataset, 
+            data_dir=args.data_dir, 
+            ignore_classes=(args.drift_mode == "data"),
+            has_target=(not args.no_target)
         )
     except Exception as e:
         logger.error(f"Failed to load data: {e}")
         return
 
+    # Determine default color scheme
+    color_scheme = args.color_scheme
+    if color_scheme is None:
+        if args.drift_mode == "data" or len(classes) == 1:
+            color_scheme = "drift"
+        else:
+            color_scheme = "class"
+
+    # Validate highlight_misclassifications
+    if args.highlight_misclassifications:
+        if color_scheme == "drift":
+            logger.warning("Misclassifications cannot be highlighted with the 'drift' color scheme. Disabling highlight.")
+            args.highlight_misclassifications = False
+        elif args.drift_mode == "data" or args.no_target or len(classes) < 2:
+            logger.warning("Misclassifications cannot be highlighted without class targets. Disabling highlight.")
+            args.highlight_misclassifications = False
+
+    # Validate boundary
+    if not args.no_boundary:
+        if color_scheme == "drift":
+            logger.warning("Decision boundary cannot be displayed with the 'drift' color scheme. Boundary disabled.")
+            args.no_boundary = True
+        elif args.drift_mode == "data" or args.no_target or len(classes) < 2:
+            args.no_boundary = True
+
+    needs_model = (not args.no_boundary) or args.highlight_misclassifications
+
     # Train model on Pre-drift data ONLY
     pre_drift_model = None
-    if not args.no_boundary:
+    if needs_model:
         if args.model == "svc":
             pre_drift_model = SVC(kernel='rbf', probability=True, random_state=42)
         else:
@@ -87,7 +133,8 @@ def run_dca():
         pre_drift_model.fit(X_pre, y_pre)
 
     # Fit DriftComponentAnalysis2 using SVD
-    dca = DriftComponentAnalysis2(n_components=2, by_class=args.by_class)
+    by_class = (args.drift_mode == "per-class")
+    dca = DriftComponentAnalysis2(n_components=2, by_class=by_class)
     dca.fit(X_pre, X_post, y_pre, y_post)
 
     # Setup the unified GridSpec figure
@@ -99,21 +146,31 @@ def run_dca():
     ax_drift = fig.add_subplot(gs[1, 1])        
 
     # Plot 1: Main Scatter Plot with Optional Boundaries (Top spanning)
-    contour = plot_dca_scatter(
+    contour_info = plot_dca_scatter(
         X_pre, y_pre, X_post, y_post, dca, ax=ax_scatter, 
-        pre_drift_model=pre_drift_model
+        pre_drift_model=pre_drift_model, color_scheme=color_scheme,
+        discrete_boundary=args.discrete_boundary,
+        draw_boundary=not args.no_boundary,
+        highlight_misclassifications=args.highlight_misclassifications,
+        hide_pre_drift_points=args.hide_pre_drift_points
     )
-    if contour is not None:
+    
+    if isinstance(contour_info, tuple):
+        contour, is_discrete = contour_info
+    else:
+        contour, is_discrete = contour_info, False
+
+    if contour is not None and not is_discrete and len(classes) == 2:
         # Add colorbar purely for the boundary probability on the side of ax_scatter
         cbar_ax = fig.add_axes([0.91, 0.55, 0.02, 0.3])
-        fig.colorbar(contour, cax=cbar_ax, label="Probability of Class 1")
+        fig.colorbar(contour, cax=cbar_ax, label=f"Probability of Class {classes[1]}")
         plt.subplots_adjust(right=0.88, hspace=0.3, wspace=0.3)
 
     # Plot 2: Loadings Compass Rose (Bottom Left)
-    plot_loadings_compass(dca, ax=ax_loadings, feature_names=feature_names, scale_loadings=args.scale_loadings)
+    plot_loadings_compass(dca, ax=ax_loadings, feature_names=feature_names, scale_loadings=(not args.unscaled_loadings))
 
     # Plot 3: Drift Compass Rose (Bottom Right)
-    plot_drift_compass(dca, ax=ax_drift, classes=classes)
+    plot_drift_compass(dca, ax=ax_drift, classes=classes if args.drift_mode != "data" else None, color_scheme=color_scheme)
 
     if contour is None:
         plt.tight_layout()

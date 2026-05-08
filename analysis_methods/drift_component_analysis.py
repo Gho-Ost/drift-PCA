@@ -26,8 +26,8 @@ class DriftComponentAnalysis2:
         diff_vectors = []
         if self.by_class:
             classes = np.intersect1d(np.unique(y_ref), np.unique(y_cur))
-            if len(classes) != 2:
-                logger.warning(f"Expected 2 classes, found {len(classes)}. This method is optimized for binary classification.")
+            if len(classes) > 6:
+                logger.warning(f"Expected up to 6 classes, found {len(classes)}. Exceeding 6 classes is not supported by standard palettes.")
                 
             for c in classes:
                 X_ref_c = X_ref[y_ref == c]
