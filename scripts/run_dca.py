@@ -73,11 +73,11 @@ def run_dca():
     parser.add_argument("--model", type=str, choices=["svc", "rf"], default="svc", help="Pre-drift model to use for boundary")
     parser.add_argument("--no_boundary", action="store_true", help="Do not draw decision boundary")
     parser.add_argument("--discrete_boundary", action="store_true", help="Display hard decision boundaries instead of class probabilities")
-    parser.add_argument("--drift_mode", type=str, choices=["data", "global", "per-class"], default="global", 
+    parser.add_argument("--drift_mode", type=str, choices=["data", "global", "per-class"], default="per-class", 
                         help="Drift calculation mode: 'data' (ignore classes), 'global' (use classes but calc global drift), 'per-class' (calc drift per class)")
     parser.add_argument("--no_target", action="store_true", help="Dataset does not have a target/class column. All columns will be used as features.")
     parser.add_argument("--unscaled_loadings", action="store_true", help="Disable scaling of feature loadings by singular values in the Biplot")
-    parser.add_argument("--color_scheme", type=str, choices=["class", "drift"], default=None, help="Color scheme for plots")
+    parser.add_argument("--color_scheme", type=str, choices=["class", "drift"], default="class", help="Color scheme for plots")
     parser.add_argument("--highlight_misclassifications", action="store_true", help="Highlight post-drift points misclassified by the pre-drift model")
     parser.add_argument("--hide_pre_drift_points", action="store_true", help="Do not draw pre-drift points on the scatter plot")
     parser.add_argument("--feature_importance", action="store_true", help="Use model explainability to color code feature importance on the Loadings compass rose")
