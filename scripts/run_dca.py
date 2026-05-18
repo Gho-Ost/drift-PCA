@@ -99,6 +99,10 @@ def run_dca():
 
     # Determine default color scheme
     color_scheme = args.color_scheme
+    if args.color_scheme == "class" and (args.drift_mode == "data" or len(classes) == 1):
+        logger.warning("Class color scheme cannot be used in a single or no class scenarios. Switching to drift color scheme.")
+        color_scheme = "drift"
+
     if color_scheme is None:
         if args.drift_mode == "data" or len(classes) == 1:
             color_scheme = "drift"
@@ -144,8 +148,10 @@ def run_dca():
     feature_importances = None
     if args.feature_importance and pre_drift_model is not None:
         logger.info("Calculating feature importances using permutation importance...")
-        result = permutation_importance(pre_drift_model, X_pre, y_pre, n_repeats=5, random_state=42, n_jobs=-1)
+        result = permutation_importance(pre_drift_model, X_pre, y_pre, n_repeats=5, random_state=42, n_jobs=-1) # TODO Run on test set?
         feature_importances = np.maximum(result.importances_mean, 0)
+
+    print("cs", color_scheme)
 
     # Fit DriftComponentAnalysis2 using SVD
     by_class = (args.drift_mode == "per-class")
