@@ -45,9 +45,6 @@ def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax,
     X_post_proj = dca.transform(X_post)
     
     classes = np.unique(np.concatenate([y_pre, y_post]))
-    if color_scheme == 'class' and len(classes) > 6:
-        logger.warning(f"Too many classes ({len(classes)}) for paired class palette. Maximum is 6.")
-        raise ValueError(f"Too many classes ({len(classes)}) for paired class palette. Maximum is 6.")
         
     # Set hue strings
     if color_scheme == 'drift':
@@ -82,8 +79,8 @@ def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax,
             return mcolors.to_hex([c * factor for c in rgb])
 
         full_palette = get_paired_class_palette()
-        light_colors = [full_palette[2*i] for i in range(len(classes))]
-        dark_colors = [full_palette[2*i+1] for i in range(len(classes))]
+        light_colors = [full_palette[(2*i) % len(full_palette)] for i in range(len(classes))]
+        dark_colors = [full_palette[(2*i+1) % len(full_palette)] for i in range(len(classes))]
         extreme_colors = [darken_hex(c) for c in dark_colors]
         class_to_idx = {c: i for i, c in enumerate(classes)}
         
@@ -110,7 +107,7 @@ def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax,
         hue_order = ["Pre-drift", "Post-drift"]
     else:
         full_palette = get_paired_class_palette()
-        palette = full_palette[:len(classes)*2]
+        palette = [full_palette[i % len(full_palette)] for i in range(len(classes)*2)]
         hue_order = []
         for c in classes:
             hue_order.extend([f"Class {c} Pre", f"Class {c} Post"])
@@ -126,6 +123,8 @@ def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax,
             misclassified_flag = (y_post != y_post_pred)
         else:
             misclassified_flag = np.zeros(len(y_post), dtype=bool)
+            
+        ages = np.linspace(0.4, 0.95, len(y_post)) if drift_type == 'gradual' else np.full(len(y_post), 0.8)
     else:
         plot_df = pd.DataFrame({
             "Component 1": np.concatenate([X_pre_proj[:, 0], X_post_proj[:, 0]]),
@@ -138,34 +137,62 @@ def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax,
             misclassified_flag = np.concatenate([np.zeros(len(y_pre), dtype=bool), misclassified])
         else:
             misclassified_flag = np.zeros(len(y_pre) + len(y_post), dtype=bool)
+            
+        if drift_type == 'gradual':
+            ages = np.concatenate([
+                np.linspace(0.4, 0.95, len(y_pre)), 
+                np.linspace(0.4, 0.95, len(y_post))
+            ])
+        else:
+            ages = np.full(len(y_pre) + len(y_post), 0.8)
 
     plot_df["Misclassified_Flag"] = misclassified_flag
+    plot_df["Age"] = ages
+
+    # Map labels to base colors
+    color_map = {label: mcolors.to_rgb(color) for label, color in zip(hue_order, palette)}
+    base_colors = np.array([color_map[label] for label in plot_df["Label"]])
+    
+    # Calculate RGBA values for all points
+    rgba_colors = np.zeros((len(plot_df), 4))
+    rgba_colors[:, :3] = base_colors
+    rgba_colors[:, 3] = plot_df["Age"].values
+    
+    correct_mask = ~plot_df["Misclassified_Flag"].values
+    misclassified_mask = plot_df["Misclassified_Flag"].values
+    
+    # Plot correctly classified (in natural array order to preserve z-order across time)
+    if np.any(correct_mask):
+        ax.scatter(plot_df["Component 1"].values[correct_mask], 
+                   plot_df["Component 2"].values[correct_mask], 
+                   c=rgba_colors[correct_mask], s=60, edgecolors='white', linewidth=0.5)
+                   
+    # Plot misclassified on top
+    if np.any(misclassified_mask):
+        ax.scatter(plot_df["Component 1"].values[misclassified_mask], 
+                   plot_df["Component 2"].values[misclassified_mask], 
+                   c=rgba_colors[misclassified_mask], s=65, edgecolors='black', linewidth=1.5)
+
+    # Add legend entries manually
+    handles = []
+    labels = []
+    for label, color in zip(hue_order, palette):
+        if label not in plot_df["Label"].values:
+            continue
+        handle = mlines.Line2D([], [], color='none', marker='o',
+                               markerfacecolor=color, markeredgecolor='white',
+                               markersize=8, label=label, alpha=0.8)
+        handles.append(handle)
+        labels.append(label)
 
     if highlight_misclassifications and pre_drift_model is not None:
-        # Plot correctly classified points and pre-drift points normally
-        sns.scatterplot(
-            data=plot_df[~plot_df["Misclassified_Flag"]], x="Component 1", y="Component 2", hue="Label",
-            palette=palette, hue_order=hue_order, alpha=0.8, s=60, ax=ax, legend=True
-        )
-        # Overlay misclassified points with a prominent black border
-        sns.scatterplot(
-            data=plot_df[plot_df["Misclassified_Flag"]], x="Component 1", y="Component 2", hue="Label",
-            palette=palette, hue_order=hue_order, alpha=0.8, s=65, edgecolor="black", linewidth=1.5, ax=ax, legend=False
-        )
-        
-        # Add custom legend entry for misclassifications
-        handles, labels = ax.get_legend_handles_labels()
         misclassified_handle = mlines.Line2D([], [], color='none', marker='o', 
                                              markeredgecolor='black', markerfacecolor='none', 
                                              markersize=8, markeredgewidth=1.5, label='Misclassified')
         handles.append(misclassified_handle)
         labels.append('Misclassified')
-        ax.legend(handles=handles, labels=labels)
-    else:
-        sns.scatterplot(
-            data=plot_df, x="Component 1", y="Component 2", hue="Label",
-            palette=palette, hue_order=hue_order, alpha=0.8, s=60, ax=ax
-        )
+
+    ax.legend(handles=handles, labels=labels)
     
     ax.axhline(0, color='grey', linestyle='--', alpha=0.5)
     ax.axvline(0, color='grey', linestyle='--', alpha=0.5)
@@ -275,11 +302,11 @@ def plot_drift_compass(dca, ax, classes=None, color_scheme='class'):
         if classes is not None and len(vectors_trans) == len(classes) * 2:
             for i, c in enumerate(classes):
                 labels.extend([f"Class {c} Mean Diff", f"Class {c} Std Diff"])
-                colors.extend([full_palette[2*i+1], full_palette[2*i]])
+                colors.extend([full_palette[(2*i+1) % len(full_palette)], full_palette[(2*i) % len(full_palette)]])
         else:
             for i in range(len(vectors_trans)//2):
                 labels.extend([f"C{i} Mean Diff", f"C{i} Std Diff"])
-                colors.extend([full_palette[2*i+1], full_palette[2*i]])
+                colors.extend([full_palette[(2*i+1) % len(full_palette)], full_palette[(2*i) % len(full_palette)]])
                 
     for i, vec in enumerate(vectors_trans):
         color = colors[i % len(colors)]

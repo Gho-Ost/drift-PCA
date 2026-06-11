@@ -55,8 +55,6 @@ def load_and_scale_data(dataset_name="sea", data_dir="stream_datasets", ignore_c
         classes = np.array([0])
     else:
         classes = np.unique(np.concatenate([y_pre, y_post]))
-        if len(classes) > 6:
-            raise ValueError(f"Dataset {dataset_name} has {len(classes)} classes. Maximum supported is 6.")
 
     # Scale data
     scaler = StandardScaler()
