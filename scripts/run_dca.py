@@ -81,6 +81,8 @@ def run_dca():
     parser.add_argument("--highlight_misclassifications", action="store_true", help="Highlight post-drift points misclassified by the pre-drift model")
     parser.add_argument("--hide_pre_drift_points", action="store_true", help="Do not draw pre-drift points on the scatter plot")
     parser.add_argument("--feature_importance", action="store_true", help="Use model explainability to color code feature importance on the Loadings compass rose")
+    parser.add_argument("--grid_points", type=int, default=50, help="Number of points in the decision boundary grid (grid_points X grid_points)")
+    parser.add_argument("--drift_type", type=str, choices=["sudden", "gradual"], default="sudden", help="Type of drift visualization/coloring mode: 'sudden' or 'gradual'")
 
     args = parser.parse_args()
 
@@ -151,8 +153,6 @@ def run_dca():
         result = permutation_importance(pre_drift_model, X_pre, y_pre, n_repeats=5, random_state=42, n_jobs=-1) # TODO Run on test set?
         feature_importances = np.maximum(result.importances_mean, 0)
 
-    print("cs", color_scheme)
-
     # Fit DriftComponentAnalysis2 using SVD
     by_class = (args.drift_mode == "per-class")
     dca = DriftComponentAnalysis2(n_components=2, by_class=by_class)
@@ -166,14 +166,15 @@ def run_dca():
     ax_loadings = fig.add_subplot(gs[1, 0])     
     ax_drift = fig.add_subplot(gs[1, 1])        
 
-    # Plot 1: Main Scatter Plot with Optional Boundaries (Top spanning)
     contour_info = plot_dca_scatter(
         X_pre, y_pre, X_post, y_post, dca, ax=ax_scatter, 
         pre_drift_model=pre_drift_model, color_scheme=color_scheme,
         discrete_boundary=args.discrete_boundary,
         draw_boundary=not args.no_boundary,
         highlight_misclassifications=args.highlight_misclassifications,
-        hide_pre_drift_points=args.hide_pre_drift_points
+        hide_pre_drift_points=args.hide_pre_drift_points,
+        grid_points=args.grid_points,
+        drift_type=args.drift_type
     )
     
     if isinstance(contour_info, tuple):

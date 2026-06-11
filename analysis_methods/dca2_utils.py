@@ -9,7 +9,7 @@ import matplotlib.lines as mlines
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
 logger = logging.getLogger(__name__)
-
+ARROW_HEAD_WIDTH_SCALE = 6
 
 def get_paired_class_palette():
     """
@@ -25,7 +25,16 @@ def get_paired_class_palette():
         '#ffff99', '#b15928'  # Brown
     ]
 
-def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax, pre_drift_model=None, grid_points=200, color_scheme='class', discrete_boundary=False, draw_boundary=True, highlight_misclassifications=False, hide_pre_drift_points=False):
+def plot_dca_scatter(X_pre, y_pre, X_post, y_post, dca, ax, 
+                    pre_drift_model=None, 
+                    grid_points=200, 
+                    color_scheme='class', 
+                    discrete_boundary=False, 
+                    draw_boundary=True, 
+                    highlight_misclassifications=False, 
+                    hide_pre_drift_points=False,
+                    drift_type='sudden'
+                    ):
     """
     Main scatter plot comprising unscaled data values.
     Optionally draws a decision boundary from the inverse-transformed PCA grid queried on the pre_drift_model.
@@ -211,7 +220,7 @@ def plot_loadings_compass(dca, ax, feature_names=None, scale_loadings=False, fea
 
     for i, arrow in enumerate(loadings):
         color = colors[i]
-        ax.arrow(0, 0, arrow[0], arrow[1], color=color, alpha=0.8, 
+        ax.arrow(0, 0, arrow[0], arrow[1], color=color, alpha=0.8, head_width=ARROW_HEAD_WIDTH_SCALE*(0.005*max_val),
                  width=0.005*max_val, length_includes_head=True, zorder=10)
         
         label = feature_names[i] if feature_names is not None else f"F{i+1}"
@@ -276,7 +285,7 @@ def plot_drift_compass(dca, ax, classes=None, color_scheme='class'):
         color = colors[i % len(colors)]
         label = labels[i] if i < len(labels) else f"Vector {i}"
         
-        ax.arrow(0, 0, vec[0], vec[1], color=color, alpha=0.8,
+        ax.arrow(0, 0, vec[0], vec[1], color=color, alpha=0.8, head_width=ARROW_HEAD_WIDTH_SCALE*(0.005*max_val),
                  width=0.005*max_val, length_includes_head=True, zorder=10, label=label)
                  
     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
