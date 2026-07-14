@@ -15,8 +15,8 @@ from sklearn.inspection import permutation_importance
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from analysis_methods.drift_component_analysis import DriftComponentAnalysis2
-from analysis_methods.dca2_utils import (
+from analysis_methods.drift_component_analysis import DriftComponentAnalysis
+from analysis_methods.dca_utils import (
     plot_dca_scatter,
     plot_loadings_compass,
     plot_drift_compass
@@ -25,10 +25,11 @@ from analysis_methods.dca2_utils import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-def load_and_scale_data(dataset_name="sea", data_dir="stream_datasets", ignore_classes=False, has_target=True):
+def load_and_scale_data(dataset_name="rbf", data_dir="data\\synthetic\\gen", ignore_classes=False, has_target=True, pre_path=None, post_path=None):
     """Load pre and post drift data."""
-    pre_path = os.path.join(data_dir, f"{dataset_name}_pre.csv")
-    post_path = os.path.join(data_dir, f"{dataset_name}_post.csv")
+    if pre_path is None or post_path is None:
+        pre_path = os.path.join(data_dir, f"{dataset_name}_pre.csv")
+        post_path = os.path.join(data_dir, f"{dataset_name}_post.csv")
 
     if not os.path.exists(pre_path) or not os.path.exists(post_path):
         raise FileNotFoundError(f"Data files for {dataset_name} not found in {data_dir}/")
@@ -65,9 +66,11 @@ def load_and_scale_data(dataset_name="sea", data_dir="stream_datasets", ignore_c
 
 def run_dca():
     parser = argparse.ArgumentParser(description="Run Drift PCA Comparison (V2 Unscaled)")
-    parser.add_argument("--data_dir", type=str, default="data", help="Directory containing the dataset files")
-    parser.add_argument("--results_dir", type=str, default="results_dca2", help="Directory to save the results")
-    parser.add_argument("--dataset", type=str, default="sea", help="Name of the dataset")
+    parser.add_argument("--data_dir", type=str, default="data\\synthetic\\gen", help="Directory containing the dataset files")
+    parser.add_argument("--results_dir", type=str, default="results\\synthetic\\generator", help="Directory to save the results")
+    parser.add_argument("--dataset", type=str, default="rbf", help="Name of the dataset")
+    parser.add_argument("--pre_file", type=str, default=None, help="Explicit path to pre-drift CSV file")
+    parser.add_argument("--post_file", type=str, default=None, help="Explicit path to post-drift CSV file")
     parser.add_argument("--model", type=str, choices=["svc", "rf"], default="svc", help="Pre-drift model to use for boundary")
     parser.add_argument("--no_boundary", action="store_true", help="Do not draw decision boundary")
     parser.add_argument("--discrete_boundary", action="store_true", help="Display hard decision boundaries instead of class probabilities")
@@ -91,7 +94,9 @@ def run_dca():
             dataset_name=args.dataset, 
             data_dir=args.data_dir, 
             ignore_classes=(args.drift_mode == "data"),
-            has_target=(not args.no_target)
+            has_target=(not args.no_target),
+            pre_path=args.pre_file,
+            post_path=args.post_file
         )
     except Exception as e:
         logger.error(f"Failed to load data: {e}")
@@ -134,6 +139,14 @@ def run_dca():
 
     needs_model = (not args.no_boundary) or args.highlight_misclassifications or args.feature_importance
 
+    # Ensure we have at least 2 classes in y_pre to fit a classification model
+    if needs_model and len(np.unique(y_pre)) < 2:
+        logger.warning(f"Only one class ({np.unique(y_pre)[0]}) found in pre-drift target labels. Classification model cannot be trained. Disabling boundary, misclassification highlight, and feature importance.")
+        args.no_boundary = True
+        args.highlight_misclassifications = False
+        args.feature_importance = False
+        needs_model = False
+
     # Train model on Pre-drift data ONLY
     pre_drift_model = None
     if needs_model:
@@ -151,9 +164,9 @@ def run_dca():
         result = permutation_importance(pre_drift_model, X_pre, y_pre, n_repeats=5, random_state=42, n_jobs=-1) # TODO Run on test set?
         feature_importances = np.maximum(result.importances_mean, 0)
 
-    # Fit DriftComponentAnalysis2 using SVD
+    # Fit DriftComponentAnalysis using SVD
     by_class = (args.drift_mode == "per-class")
-    dca = DriftComponentAnalysis2(n_components=2, by_class=by_class)
+    dca = DriftComponentAnalysis(n_components=2, by_class=by_class)
     dca.fit(X_pre, X_post, y_pre, y_post)
 
     # Setup the unified GridSpec figure
@@ -195,8 +208,9 @@ def run_dca():
     if contour is None:
         plt.tight_layout()
 
-    combined_path = os.path.join(args.results_dir, f"{args.dataset}_dca2_combined.png")
-    fig.savefig(combined_path, dpi=150, bbox_inches='tight')
+    combined_path = os.path.join(args.results_dir, f"{args.dataset}_dca.png")
+    # fig.savefig(combined_path, dpi=300, bbox_inches='tight')
+    fig.savefig(combined_path, bbox_inches='tight')
     plt.close(fig)
 
 if __name__ == "__main__":

@@ -8,11 +8,19 @@ import umap
 
 from ssnp.code.ssnp import SSNP
 
+ARROW_HEAD_WIDTH_SCALE = 6
 logger = logging.getLogger(__name__)
 
-# Reusing the palette from dca2_utils for consistency
+# Using the paired class palette https://colorbrewer2.org/#type=qualitative&scheme=Paired&n=12
 def get_paired_class_palette():
-    return ["#a6cee3", "#1f78b4", "#fb9a99", "#e31a1c"]
+    return [
+        '#a6cee3', '#1f78b4', # Blue
+        '#fb9a99', '#e31a1c', # Red
+        '#b2df8a', '#33a02c', # Green
+        '#fdbf6f', '#ff7f00', # Orange
+        '#cab2d6', '#6a3d9a', # Purple
+        '#ffff99', '#b15928'  # Brown
+    ]
 
 class BaseFitter:
     def __init__(self, name):
@@ -63,6 +71,8 @@ class PCAFitter(BaseFitter):
     def fit(self, X_pre, X_post, y_pre, y_post, diff_matrix):
         self.model.fit(X_pre)
         self.components_ = self.model.components_
+        # Scale loading arrows by component standard deviations (singular values / sqrt(N-1))
+        self.loading_scale_factors_ = np.sqrt(self.model.explained_variance_)
         return self
         
     def transform(self, X_pre, X_post):
@@ -101,29 +111,44 @@ class SSNPFitter(BaseFitter):
 
 # --- Plotting Utilities ---
 
-def plot_algorithm_scatter(X_proj, y, ax, title, is_pre=True, c0=0, c1=1):
-    palette = get_paired_class_palette()
-    
-    if is_pre:
-        hue_order = [f"Class {c0} Pre", f"Class {c1} Pre"]
-        # colors = [palette[0], palette[2]]
-        colors = [palette[1], palette[3]]
-        labels = np.where(y == c0, hue_order[0], hue_order[1])
-    else:
-        hue_order = [f"Class {c0} Post", f"Class {c1} Post"]
-        colors = [palette[1], palette[3]]
-        labels = np.where(y == c0, hue_order[0], hue_order[1])
+def plot_algorithm_scatter(X_proj, y, ax, title, is_pre=True, classes=None):
+    if classes is None:
+        classes = np.unique(y)
         
+    full_palette = get_paired_class_palette()
+    
+    # Generate hue_order and colors for the classes
+    hue_order = []
+    colors = []
+    for idx, c in enumerate(classes):
+        if is_pre:
+            hue_order.append(f"Class {c} Pre")
+            colors.append(full_palette[(2 * idx + 1) % len(full_palette)])
+        else:
+            hue_order.append(f"Class {c} Post")
+            colors.append(full_palette[(2 * idx + 1) % len(full_palette)])
+            
+    suffix = "Pre" if is_pre else "Post"
+    labels = np.array([f"Class {c} {suffix}" for c in y], dtype=object)
+    
     df = pd.DataFrame({
         "Comp 1": X_proj[:, 0],
         "Comp 2": X_proj[:, 1],
         "Label": labels
     })
     
+    # Filter hue_order and colors to keep only those actually present in y
+    present_labels = np.unique(labels)
+    hue_order_filtered = [l for l in hue_order if l in present_labels]
+    colors_filtered = [colors[hue_order.index(l)] for l in hue_order_filtered]
+    
     sns.scatterplot(
         data=df, x="Comp 1", y="Comp 2", hue="Label",
-        palette=colors, hue_order=hue_order, alpha=0.6, s=40, ax=ax, edgecolor=None
+        palette=colors_filtered, hue_order=hue_order_filtered, 
+        alpha=0.6, s=25, ax=ax, edgecolor='white', linewidth=0.3
     )
+    ax.axhline(0, color='grey', linestyle='--', alpha=0.5)
+    ax.axvline(0, color='grey', linestyle='--', alpha=0.5)
     
     ax.set_title(title, fontsize=12)
     ax.set_xlabel("Component 1")
@@ -160,7 +185,7 @@ def plot_compass_rose(components, ax, feature_names=None, loading_scale_factors=
         arrow_x = arrow[0]
         arrow_y = arrow[1] if len(arrow) > 1 else 0.0
         
-        ax.arrow(0, 0, arrow_x, arrow_y, color="k", alpha=0.7, 
+        ax.arrow(0, 0, arrow_x, arrow_y, color="k", alpha=0.7, head_width=ARROW_HEAD_WIDTH_SCALE*(0.005*max_val),
                  width=0.005*max_val, length_includes_head=True, zorder=10)
         
         label = feature_names[i] if feature_names is not None else f"F{i+1}"
@@ -171,7 +196,7 @@ def plot_compass_rose(components, ax, feature_names=None, loading_scale_factors=
     ax.set_xlabel("Component 1")
     ax.set_ylabel("Component 2")
 
-def plot_algorithm_drift_compass(vectors_trans, ax, classes=None):
+def plot_algorithm_drift_compass(vectors_trans, ax, classes=None, classes_computed=None):
     if vectors_trans is None or len(vectors_trans) == 0:
         ax.set_title("No Drift Vectors")
         ax.axis('off')
@@ -191,28 +216,47 @@ def plot_algorithm_drift_compass(vectors_trans, ax, classes=None):
     ax.set_ylim(-max_val, max_val)
     
     labels = []
-    if classes is not None and len(classes) == 2 and len(vectors_trans) == 4:
-        labels = [f"Class {classes[0]} Mean Diff", f"Class {classes[0]} Std Diff", 
-                  f"Class {classes[1]} Mean Diff", f"Class {classes[1]} Std Diff"]
-    elif len(vectors_trans) == 2:
-        labels = ["Global Mean Diff", "Global Std Diff"]
-    else:
-        for i in range(len(vectors_trans)//2):
-            labels.extend([f"C{i} Mean Diff", f"C{i} Std Diff"])
-            
-    colors = ['#e7298a', '#7570b3', '#d95f02', '#1b9e77']
+    colors = []
     
+    full_palette = get_paired_class_palette()
+    
+    is_global = len(vectors_trans) == 2 and (classes_computed is None or len(classes_computed) == 0)
+    
+    if is_global:
+        labels = ["Global Mean Diff", "Global Std Diff"]
+        colors = ["#800080", "#ffd700"]
+    else:
+        if classes_computed is not None and len(vectors_trans) == len(classes_computed) * 2:
+            for c in classes_computed:
+                if classes is not None and c in classes:
+                    i = list(classes).index(c)
+                else:
+                    i = len(classes) if classes is not None else 0
+                labels.extend([f"Class {c} Mean Diff", f"Class {c} Std Diff"])
+                colors.extend([full_palette[(2*i+1) % len(full_palette)], full_palette[(2*i) % len(full_palette)]])
+        elif classes is not None and len(vectors_trans) == len(classes) * 2:
+            for i, c in enumerate(classes):
+                labels.extend([f"Class {c} Mean Diff", f"Class {c} Std Diff"])
+                colors.extend([full_palette[(2*i+1) % len(full_palette)], full_palette[(2*i) % len(full_palette)]])
+        else:
+            for i in range(len(vectors_trans)//2):
+                labels.extend([f"C{i} Mean Diff", f"C{i} Std Diff"])
+                colors.extend([full_palette[(2*i+1) % len(full_palette)], full_palette[(2*i) % len(full_palette)]])
+                
+    import matplotlib.lines as mlines
+    handles = []
     for i, vec in enumerate(vectors_trans):
-        color = colors[i % len(colors)]
+        color = colors[i % len(colors)] if len(colors) > 0 else 'k'
         label = labels[i] if i < len(labels) else f"Vector {i}"
         
-        ax.arrow(0, 0, vec[0], vec[1], color=color, alpha=0.8,
+        ax.arrow(0, 0, vec[0], vec[1], color=color, alpha=0.8, head_width=ARROW_HEAD_WIDTH_SCALE*(0.005*max_val),
                  width=0.005*max_val, length_includes_head=True, zorder=10)
+        
+        # Create a legend handle for this vector
+        handle = mlines.Line2D([], [], color=color, marker='>', markersize=5, label=label, alpha=0.8)
+        handles.append(handle)
                  
-        ax.text(vec[0] * 1.1, vec[1] * 1.1, label, ha='center', va='center', color=color, 
-                fontsize=11, fontweight='bold',
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8, edgecolor="none"))
-                
+    ax.legend(handles=handles, prop={'size': 7.5}, loc='upper left', bbox_to_anchor=(1.0, 1.0))
     ax.set_title("Drift Vectors Compass", fontsize=12)
     ax.set_xlabel("Component 1")
     ax.set_ylabel("Component 2")
