@@ -39,7 +39,7 @@ def run_experiments():
             "--dataset", ds,
             "--drift_mode", "per-class",
             "--color_scheme", "class",
-            "--drift_type", "gradual",
+            "--drift_type", "sudden",
             "--feature_importance",
             "--highlight_misclassifications",
             "--grid_points", "200"
