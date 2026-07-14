@@ -13,7 +13,8 @@ from sklearn.svm import SVC
 from sklearn.inspection import permutation_importance
 
 # Ensure parent directory is in path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
 
 from analysis_methods.drift_component_analysis import DriftComponentAnalysis
 from analysis_methods.dca_utils import (

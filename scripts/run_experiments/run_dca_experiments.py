@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 def run_experiments():
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     data_dir = os.path.join(base_dir, "data", "synthetic", "gen")
     script_path = os.path.join(base_dir, "scripts", "run_dca.py")
     results_dir = os.path.join(base_dir, "results", "synthetic", "gen")

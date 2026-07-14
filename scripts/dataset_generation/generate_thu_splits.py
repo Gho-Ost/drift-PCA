@@ -7,8 +7,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Add repo base to sys.path to allow importing DataStreamGenerator natively
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 thu_dir = os.path.join(base_dir, "THU-Concept-Drift-Datasets-v1.0")
 sys.path.append(thu_dir)
 
