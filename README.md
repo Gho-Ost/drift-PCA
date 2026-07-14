@@ -200,6 +200,20 @@ python scripts/run_dca.py \
 
 ---
 
+## Running the Showcase Application
+
+We provide an interactive **Streamlit Showcase Application** that allows users to:
+1. Load pre/post drift datasets from any folder (scanning and rendering dataset files dynamically).
+2. Configure all DCA parameter choices on the fly (model, mode, boundary grids, misclassification highlights, feature importances, etc.) and view the updated 2D mappings instantly.
+3. Configure and generate custom class-specific synthetic drift datasets with specific feature-level means and standard deviations from a visual form interface.
+
+To start the application:
+```bash
+python -m streamlit run app/main.py
+```
+
+---
+
 ## Running Benchmarks and Experiments
 
 ### 1. Individual Experiment Suites
